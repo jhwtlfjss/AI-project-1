@@ -18,3 +18,6 @@ data/client_profile.json
 data/hub_profile.json
 data/certs/
 logs/
+clients/android/.gradle/
+clients/android/local.properties
+clients/android/**/build/

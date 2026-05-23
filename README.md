@@ -126,6 +126,12 @@ http://家里电脑的Tailscale-IP:8765
 python scripts/desktop_client.py
 ```
 
+或者：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File clients\desktop\start_desktop_client.ps1
+```
+
 命令行客户端：
 
 ```powershell
@@ -133,6 +139,14 @@ python scripts/client_cli.py --server http://100.x.y.z:8765 --token 你的token
 ```
 
 详细说明见 [docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md)。
+
+安卓客户端源码在：
+
+```text
+clients/android
+```
+
+用 Android Studio 打开后可以构建 APK。详细说明见 [clients/android/README.md](clients/android/README.md)。
 
 如果暂时不搭外部服务器，而是让自己的主设备作为私人中转 Hub：
 
