@@ -4,15 +4,20 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -42,8 +47,13 @@ public class MainActivity extends Activity {
     private EditText tokenInput;
     private EditText clientInput;
     private CheckBox trustSelfSigned;
+    private CheckBox liveSearchInput;
+    private CheckBox autoLookupInput;
+    private Spinner searchEngineInput;
+    private EditText customSearchInput;
     private TextView statusText;
-    private TextView chatLog;
+    private ScrollView chatScroll;
+    private LinearLayout chatContainer;
     private EditText messageInput;
     private Button sendButton;
 
@@ -65,6 +75,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("AI Project 1");
         title.setTextSize(22);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(Color.rgb(32, 33, 35));
         title.setGravity(Gravity.START);
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
@@ -90,6 +101,44 @@ public class MainActivity extends Activity {
         trustSelfSigned.setTextColor(Color.rgb(64, 45, 28));
         root.addView(trustSelfSigned, new LinearLayout.LayoutParams(-1, -2));
 
+        LinearLayout searchPanel = new LinearLayout(this);
+        searchPanel.setOrientation(LinearLayout.VERTICAL);
+        searchPanel.setPadding(0, dp(6), 0, dp(6));
+        root.addView(searchPanel, new LinearLayout.LayoutParams(-1, -2));
+
+        liveSearchInput = new CheckBox(this);
+        liveSearchInput.setText("Live web search");
+        liveSearchInput.setTextColor(Color.rgb(64, 45, 28));
+        searchPanel.addView(liveSearchInput, new LinearLayout.LayoutParams(-1, -2));
+
+        autoLookupInput = new CheckBox(this);
+        autoLookupInput.setText("Auto lookup triggers");
+        autoLookupInput.setTextColor(Color.rgb(64, 45, 28));
+        searchPanel.addView(autoLookupInput, new LinearLayout.LayoutParams(-1, -2));
+
+        searchEngineInput = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+                this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"google", "baidu", "custom"}
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        searchEngineInput.setAdapter(adapter);
+        searchPanel.addView(searchEngineInput, new LinearLayout.LayoutParams(-1, -2));
+        searchEngineInput.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateCustomSearchState();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        customSearchInput = singleLineInput("Custom search URL, e.g. https://example.com/search?q={query}");
+        searchPanel.addView(customSearchInput, new LinearLayout.LayoutParams(-1, -2));
+
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.END);
@@ -110,19 +159,17 @@ public class MainActivity extends Activity {
         clearButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                chatLog.setText("");
+                chatContainer.removeAllViews();
             }
         });
         actions.addView(clearButton);
 
-        ScrollView scroll = new ScrollView(this);
-        chatLog = new TextView(this);
-        chatLog.setTextSize(16);
-        chatLog.setTextColor(Color.rgb(32, 33, 35));
-        chatLog.setPadding(0, dp(8), 0, dp(8));
-        chatLog.setTextIsSelectable(true);
-        scroll.addView(chatLog, new ScrollView.LayoutParams(-1, -2));
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        chatScroll = new ScrollView(this);
+        chatContainer = new LinearLayout(this);
+        chatContainer.setOrientation(LinearLayout.VERTICAL);
+        chatContainer.setPadding(0, dp(8), 0, dp(8));
+        chatScroll.addView(chatContainer, new ScrollView.LayoutParams(-1, -2));
+        root.addView(chatScroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         LinearLayout composer = new LinearLayout(this);
         composer.setOrientation(LinearLayout.HORIZONTAL);
@@ -161,6 +208,11 @@ public class MainActivity extends Activity {
         tokenInput.setText(prefs.getString("token", ""));
         clientInput.setText(prefs.getString("client_id", "android-phone"));
         trustSelfSigned.setChecked(prefs.getBoolean("trust_self_signed", false));
+        liveSearchInput.setChecked(prefs.getBoolean("search_enabled", true));
+        autoLookupInput.setChecked(prefs.getBoolean("search_auto_lookup", true));
+        setSpinnerValue(searchEngineInput, prefs.getString("search_engine", "google"));
+        customSearchInput.setText(prefs.getString("custom_search_url", ""));
+        updateCustomSearchState();
     }
 
     private void savePrefs() {
@@ -170,6 +222,10 @@ public class MainActivity extends Activity {
                 .putString("token", tokenInput.getText().toString().trim())
                 .putString("client_id", clientInput.getText().toString().trim())
                 .putBoolean("trust_self_signed", trustSelfSigned.isChecked())
+                .putBoolean("search_enabled", liveSearchInput.isChecked())
+                .putBoolean("search_auto_lookup", autoLookupInput.isChecked())
+                .putString("search_engine", selectedSearchEngine())
+                .putString("custom_search_url", customSearchInput.getText().toString().trim())
                 .apply();
     }
 
@@ -213,6 +269,12 @@ public class MainActivity extends Activity {
                 try {
                     JSONObject payload = new JSONObject();
                     payload.put("message", message);
+                    JSONObject webSearch = new JSONObject();
+                    webSearch.put("enabled", liveSearchInput.isChecked());
+                    webSearch.put("auto_lookup", autoLookupInput.isChecked());
+                    webSearch.put("search_engine", selectedSearchEngine());
+                    webSearch.put("custom_search_url", customSearchInput.getText().toString().trim());
+                    payload.put("web_search", webSearch);
                     JSONObject response = request("POST", "/api/chat", payload);
                     final String reply = response.optString("reply", "...");
                     runOnUiThread(new Runnable() {
@@ -316,8 +378,32 @@ public class MainActivity extends Activity {
     }
 
     private void appendChat(String speaker, String text) {
-        String current = chatLog.getText().toString();
-        chatLog.setText(current + speaker + "> " + text + "\n\n");
+        boolean mine = "我".equals(speaker);
+        boolean system = "system".equals(speaker);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(mine ? Gravity.END : Gravity.START);
+        row.setPadding(0, dp(4), 0, dp(4));
+
+        TextView bubble = new TextView(this);
+        bubble.setText(speaker + " · " + text);
+        bubble.setTextSize(15);
+        bubble.setTextColor(Color.rgb(28, 32, 36));
+        bubble.setPadding(dp(12), dp(8), dp(12), dp(8));
+        bubble.setMaxWidth(dp(300));
+        bubble.setBackground(rounded(mine ? Color.rgb(149, 236, 105) : (system ? Color.rgb(221, 227, 234) : Color.WHITE)));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-2, -2);
+        params.leftMargin = mine ? dp(48) : 0;
+        params.rightMargin = mine ? 0 : dp(48);
+        row.addView(bubble, params);
+        chatContainer.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        chatScroll.post(new Runnable() {
+            @Override
+            public void run() {
+                chatScroll.fullScroll(View.FOCUS_DOWN);
+            }
+        });
     }
 
     private void showError(final String message) {
@@ -333,5 +419,34 @@ public class MainActivity extends Activity {
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
-}
 
+    private GradientDrawable rounded(int color) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(14));
+        drawable.setStroke(dp(1), Color.rgb(214, 219, 226));
+        return drawable;
+    }
+
+    private void updateCustomSearchState() {
+        if (customSearchInput == null) {
+            return;
+        }
+        customSearchInput.setEnabled("custom".equals(selectedSearchEngine()));
+    }
+
+    private String selectedSearchEngine() {
+        Object selected = searchEngineInput.getSelectedItem();
+        return selected == null ? "google" : selected.toString();
+    }
+
+    private void setSpinnerValue(Spinner spinner, String value) {
+        for (int i = 0; i < spinner.getCount(); i++) {
+            if (value.equals(spinner.getItemAtPosition(i).toString())) {
+                spinner.setSelection(i);
+                return;
+            }
+        }
+        spinner.setSelection(0);
+    }
+}

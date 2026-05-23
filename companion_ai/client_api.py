@@ -21,8 +21,11 @@ class CompanionClient:
     def status(self) -> dict:
         return self._request("GET", "/api/status")
 
-    def chat(self, message: str) -> str:
-        payload = self._request("POST", "/api/chat", {"message": message})
+    def chat(self, message: str, web_search: dict | None = None) -> str:
+        body = {"message": message}
+        if web_search is not None:
+            body["web_search"] = web_search
+        payload = self._request("POST", "/api/chat", body)
         return str(payload.get("reply", ""))
 
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict:

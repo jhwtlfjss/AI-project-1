@@ -5,6 +5,7 @@ import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 
 from companion_ai.autonomous_learning import (
@@ -28,6 +29,12 @@ class LiveWebResult:
     source_type: str
 
 
+@dataclass
+class SearchCandidate:
+    title: str
+    url: str
+
+
 class LiveWebClient:
     def __init__(self, config: dict):
         self.config = config
@@ -35,7 +42,10 @@ class LiveWebClient:
         self.auto_lookup = bool(config.get("auto_lookup", True))
         self.cache_live_results = bool(config.get("cache_live_results", True))
         self.max_results = int(config.get("max_results", 3))
+        self.max_search_links = int(config.get("max_search_links", max(8, self.max_results * 4)))
         self.max_context_chars = int(config.get("max_context_chars", 1000))
+        self.search_engine = normalize_search_engine(str(config.get("search_engine", "google")))
+        self.custom_search_url = str(config.get("custom_search_url", "")).strip()
         self.triggers = [str(x).lower() for x in config.get("lookup_triggers", [])]
         self.allowed_domains = set(config.get("allowed_domains", []))
         self.blocked_domains = set(config.get("blocked_domains", []))
@@ -45,6 +55,28 @@ class LiveWebClient:
         if not path.exists():
             return cls({})
         return cls(json.loads(path.read_text(encoding="utf-8")))
+
+    def with_overrides(self, overrides: dict | None) -> "LiveWebClient":
+        if not overrides:
+            return self
+        config = dict(self.config)
+        if "enabled" in overrides:
+            config["live_web_enabled"] = bool(overrides["enabled"])
+        if "auto_lookup" in overrides:
+            config["auto_lookup"] = bool(overrides["auto_lookup"])
+        if "search_engine" in overrides:
+            config["search_engine"] = normalize_search_engine(str(overrides["search_engine"]))
+        if "custom_search_url" in overrides:
+            config["custom_search_url"] = str(overrides["custom_search_url"]).strip()
+        return LiveWebClient(config)
+
+    def public_settings(self) -> dict:
+        return {
+            "enabled": self.enabled,
+            "auto_lookup": self.auto_lookup,
+            "search_engine": self.search_engine,
+            "custom_search_url": self.custom_search_url,
+        }
 
     def should_lookup(self, text: str) -> bool:
         if not self.enabled:
@@ -72,7 +104,7 @@ class LiveWebClient:
 
         query = clean_query(text)
         if query:
-            for result in self.duckduckgo_instant(query):
+            for result in self.search_web(query):
                 if result.url not in seen:
                     results.append(result)
                     seen.add(result.url)
@@ -115,10 +147,43 @@ class LiveWebClient:
     def fetch_url(self, url: str) -> LiveWebResult | None:
         assert_domain_allowed(url, self.blocked_domains, self.allowed_domains)
         title, body, final_url = fetch_readable_url(url)
+        assert_domain_allowed(final_url, self.blocked_domains, self.allowed_domains)
         summary = summarize_text(body, max_chars=450)
         if not summary:
             return None
         return LiveWebResult(title=title or final_url, summary=summary, url=final_url, source_type="url")
+
+    def search_web(self, query: str) -> list[LiveWebResult]:
+        search_url = build_search_url(self.search_engine, query, self.custom_search_url)
+        if not search_url:
+            return []
+        candidates = fetch_search_candidates(search_url, self.search_engine, self.max_search_links)
+        results: list[LiveWebResult] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            if candidate.url in seen:
+                continue
+            seen.add(candidate.url)
+            try:
+                result = self.fetch_url(candidate.url)
+            except Exception:
+                result = None
+            if result:
+                result.source_type = self.search_engine
+                if is_relevant(query, f"{result.title} {result.summary}"):
+                    results.append(result)
+            elif is_relevant(query, candidate.title):
+                results.append(
+                    LiveWebResult(
+                        title=candidate.title or candidate.url,
+                        summary=f"搜索结果: {candidate.title or candidate.url}",
+                        url=candidate.url,
+                        source_type=f"{self.search_engine}:search-result",
+                    )
+                )
+            if len(results) >= self.max_results:
+                return results
+        return results
 
     def duckduckgo_instant(self, query: str) -> list[LiveWebResult]:
         api = "https://api.duckduckgo.com/?" + urllib.parse.urlencode(
@@ -206,6 +271,130 @@ def render_live_web_results(results: list[LiveWebResult], max_chars: int = 1000)
         if used >= max_chars:
             break
     return "\n".join(lines)
+
+
+class SearchPageParser(HTMLParser):
+    def __init__(self, base_url: str):
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.links: list[SearchCandidate] = []
+        self.current_href = ""
+        self.current_text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs):
+        if tag.lower() != "a":
+            return
+        attrs_dict = {name.lower(): value for name, value in attrs if value is not None}
+        href = attrs_dict.get("href", "").strip()
+        if href:
+            self.current_href = urllib.parse.urljoin(self.base_url, href)
+            self.current_text = []
+
+    def handle_data(self, data: str):
+        if self.current_href:
+            self.current_text.append(data)
+
+    def handle_endtag(self, tag: str):
+        if tag.lower() != "a" or not self.current_href:
+            return
+        title = normalize_space(" ".join(self.current_text))
+        url = normalize_search_result_url(self.current_href)
+        if title and url and is_search_candidate_url(url):
+            self.links.append(SearchCandidate(title=title[:160], url=url))
+        self.current_href = ""
+        self.current_text = []
+
+
+def normalize_search_engine(value: str) -> str:
+    value = value.strip().lower()
+    aliases = {
+        "google": "google",
+        "谷歌": "google",
+        "baidu": "baidu",
+        "百度": "baidu",
+        "custom": "custom",
+        "自定义": "custom",
+    }
+    return aliases.get(value, "google")
+
+
+def build_search_url(engine: str, query: str, custom_search_url: str = "") -> str:
+    encoded = urllib.parse.quote_plus(query)
+    if engine == "google":
+        return "https://www.google.com/search?" + urllib.parse.urlencode({"q": query, "num": "8", "hl": "zh-CN"})
+    if engine == "baidu":
+        return "https://www.baidu.com/s?" + urllib.parse.urlencode({"wd": query})
+    if engine == "custom":
+        if not custom_search_url:
+            return ""
+        if "{query}" in custom_search_url:
+            return custom_search_url.replace("{query}", encoded)
+        if "%s" in custom_search_url:
+            return custom_search_url.replace("%s", encoded)
+        separator = "&" if "?" in custom_search_url else "?"
+        return f"{custom_search_url}{separator}q={encoded}"
+    return ""
+
+
+def fetch_search_candidates(search_url: str, engine: str, limit: int) -> list[SearchCandidate]:
+    request = urllib.request.Request(search_url, headers={"User-Agent": DEFAULT_USER_AGENT})
+    with urllib.request.urlopen(request, timeout=20) as response:
+        html = response.read(2_000_000).decode("utf-8", errors="replace")
+        final_url = response.geturl()
+    parser = SearchPageParser(final_url)
+    parser.feed(html)
+    candidates: list[SearchCandidate] = []
+    seen: set[str] = set()
+    for item in parser.links:
+        if item.url in seen:
+            continue
+        if is_search_engine_internal_url(item.url, engine):
+            continue
+        candidates.append(item)
+        seen.add(item.url)
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
+def normalize_search_result_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qs(parsed.query)
+    if parsed.netloc.endswith("google.com") and parsed.path == "/url" and query.get("q"):
+        return query["q"][0]
+    if parsed.netloc.endswith("google.com") and parsed.path == "/search":
+        return ""
+    return url
+
+
+def is_search_candidate_url(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if not parsed.netloc:
+        return False
+    lowered = url.lower()
+    blocked_bits = [
+        "javascript:",
+        "accounts.google.",
+        "policies.google.",
+        "support.google.",
+        "preferences?hl=",
+        "baidu.com/s?",
+        "baidu.com/#",
+        "passport.baidu.",
+    ]
+    return not any(bit in lowered for bit in blocked_bits)
+
+
+def is_search_engine_internal_url(url: str, engine: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.netloc.lower()
+    if engine == "google":
+        return host.endswith("google.com") or host.endswith("google.co.jp")
+    if engine == "baidu":
+        return host.endswith("baidu.com") and not parsed.path.startswith("/link")
+    return False
 
 
 def extract_urls(text: str) -> list[str]:

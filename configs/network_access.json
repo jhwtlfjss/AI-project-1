@@ -2,7 +2,10 @@
   "live_web_enabled": true,
   "auto_lookup": true,
   "cache_live_results": true,
+  "search_engine": "google",
+  "custom_search_url": "",
   "max_results": 3,
+  "max_search_links": 12,
   "max_context_chars": 1000,
   "lookup_triggers": [
     "查",

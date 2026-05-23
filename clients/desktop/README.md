@@ -34,6 +34,17 @@ Self-signed HTTPS
 
 电脑端只保存连接配置，不保存模型权重、记忆或知识库。核心数据仍在主设备 Hub 上。
 
+## 联网搜索设置
+
+桌面客户端左侧设置区可以控制本次聊天请求的联网搜索：
+
+- Live web search: 是否允许这台客户端触发联网搜索。
+- Auto lookup triggers: 是否按“查一下、搜索、最新、search、latest”等触发词自动搜索。
+- Engine: 支持 `google`、`baidu`、`custom`。
+- Custom URL: 当 Engine 为 `custom` 时使用，例如 `https://example.com/search?q={query}`。
+
+这些设置会随 `POST /api/chat` 一起发给主设备 Hub，不需要重启客户端。
+
 ## 打包为 exe
 
 ```powershell
@@ -54,11 +65,13 @@ powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -Python .
 
 ## 安装包
 
-如果你想要安装包，先构建 exe，再安装 Inno Setup，然后运行：
+如果你想要安装包，先构建 exe，然后运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File clients\desktop\build_installer.ps1
 ```
+
+脚本会优先使用 Inno Setup 6；如果本机没有安装 Inno Setup，会自动使用项目内置的 .NET 安装器构建流程。
 
 安装包输出：
 

@@ -79,16 +79,17 @@ class ChatState:
             self.knowledge = KnowledgeBase.load(self.knowledge_path)
             self.knowledge_mtime = mtime
 
-    def reply(self, text: str) -> str:
+    def reply(self, text: str, live_web_options: dict | None = None) -> str:
         if self.model is None:
             return "模型还没有加载。请先训练并用 --checkpoint 指向 runs/.../ckpt.pt。"
         self.refresh_knowledge()
         live_context = ""
         live_results = []
         if self.live_web:
-            live_context, live_results = self.live_web.lookup_context(text)
+            live_web = self.live_web.with_overrides(live_web_options)
+            live_context, live_results = live_web.lookup_context(text)
             if self.use_knowledge_cache and live_results:
-                self.live_web.cache_results(self.knowledge, live_results)
+                live_web.cache_results(self.knowledge, live_results)
                 self.knowledge.save(self.knowledge_path)
                 self.knowledge_mtime = self.knowledge_path.stat().st_mtime
         realtime_context = ""
@@ -155,6 +156,7 @@ def make_handler(state: ChatState, web_root: Path):
                         "knowledge_entries": len(state.knowledge.entries) if state.use_knowledge_cache else 0,
                         "knowledge_cache": state.use_knowledge_cache,
                         "live_web": state.use_live_web,
+                        "live_web_settings": state.live_web.public_settings() if state.live_web else {},
                         "realtime_data": state.use_realtime_data,
                         "memory_facts": len(state.memory.facts),
                         "memory_turns": len(state.memory.history) // 2,
@@ -177,10 +179,13 @@ def make_handler(state: ChatState, web_root: Path):
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             message = str(payload.get("message", "")).strip()
+            live_web_options = payload.get("web_search")
+            if not isinstance(live_web_options, dict):
+                live_web_options = None
             if not message:
                 self.send_json({"reply": "我在这里。你可以慢慢说。"})
                 return
-            self.send_json({"reply": state.reply(message)})
+            self.send_json({"reply": state.reply(message, live_web_options=live_web_options)})
 
         def do_OPTIONS(self):
             self.send_response(204)

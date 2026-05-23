@@ -26,6 +26,7 @@ AI Project 1 是一个面向个人陪伴场景的从零训练 AI 工程。它的
 | 长期记忆 `memory.json` | 已实现 |
 | 本地知识库 `data/knowledge.jsonl` | 已实现 |
 | 实时网页、地址、天气等工具 | 已实现 |
+| Google / Baidu / 自定义搜索页 | 已实现，桌面客户端可选 |
 | 虚拟女友人格配置 | 已实现 |
 | 真实对话转训练样本的成长循环 | 已实现 |
 | Windows 桌面客户端 | 已实现 |
@@ -196,7 +197,9 @@ dist\AI Project 1.exe
 powershell -ExecutionPolicy Bypass -File clients\desktop\build_installer.ps1
 ```
 
-构建安装包需要本机安装 Inno Setup。
+脚本会优先使用 Inno Setup 6；如果本机没有安装 Inno Setup，会自动使用项目内置的 .NET 安装器构建流程。
+
+桌面客户端左侧设置区可以选择联网搜索引擎：`google`、`baidu` 或 `custom`。选择 `custom` 时可以填写自定义搜索页，例如 `https://example.com/search?q={query}`。
 
 ## Android 客户端
 

@@ -18,6 +18,9 @@ Android APK
 - 支持 HTTP
 - 支持 HTTPS
 - 支持自签 HTTPS 证书开关
+- 支持选择联网搜索引擎：google / baidu / custom
+- 支持自定义搜索页 URL
+- 使用气泡式聊天界面
 - 聊天消息发送到主设备 Hub
 
 ## 构建 APK
@@ -58,4 +61,3 @@ Trust self-signed HTTPS: on
 ```
 
 公网直连时请优先使用 HTTPS。HTTP 适合局域网调试。
-

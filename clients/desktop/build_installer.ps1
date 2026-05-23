@@ -14,12 +14,24 @@ if (!(Test-Path $ExePath)) {
 }
 
 if (!(Get-Command $InnoSetupCompiler -ErrorAction SilentlyContinue)) {
-  Write-Host "Inno Setup compiler was not found."
-  Write-Host "Install Inno Setup, then rerun this script."
-  exit 1
+  $CommonPaths = @(
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    "C:\Program Files\Inno Setup 6\ISCC.exe"
+  )
+  foreach ($Path in $CommonPaths) {
+    if (Test-Path $Path) {
+      $InnoSetupCompiler = $Path
+      break
+    }
+  }
+}
+
+if (!(Test-Path $InnoSetupCompiler) -and !(Get-Command $InnoSetupCompiler -ErrorAction SilentlyContinue)) {
+  Write-Host "Inno Setup compiler was not found. Falling back to the built-in .NET installer builder."
+  & "$PSScriptRoot\build_dotnet_installer.ps1"
+  exit $LASTEXITCODE
 }
 
 & $InnoSetupCompiler clients\desktop\installer.iss
 Write-Host "Installer:"
 Write-Host (Join-Path $ProjectDir "dist\AIProject1Setup.exe")
-

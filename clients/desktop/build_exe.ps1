@@ -6,6 +6,12 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectDir = (Resolve-Path "$PSScriptRoot\..\..").Path
 Set-Location $ProjectDir
+$IconPath = Join-Path $ProjectDir "assets\app_icon.ico"
+$IconPngPath = Join-Path $ProjectDir "assets\app_icon.png"
+
+if (!(Test-Path $IconPath) -or !(Test-Path $IconPngPath)) {
+  & $Python scripts\generate_app_icon.py
+}
 
 try {
   & $Python -m PyInstaller --version | Out-Null
@@ -25,9 +31,11 @@ try {
   --onefile `
   --windowed `
   --name "AI Project 1" `
+  --icon "$IconPath" `
+  --add-data "$IconPngPath;assets" `
+  --add-data "$IconPath;assets" `
   --paths "$ProjectDir" `
   clients\desktop\app\ai_project1_client.py
 
 Write-Host "Executable:"
 Write-Host (Join-Path $ProjectDir "dist\AI Project 1.exe")
-
