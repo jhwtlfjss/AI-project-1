@@ -1,6 +1,6 @@
 # Desktop Client
 
-电脑端正式可执行客户端是原生 Windows Forms 程序，不需要浏览器，也不依赖 Python/Tkinter。源码在：
+电脑端正式可执行客户端是中文原生 Windows Forms 程序，不需要浏览器，也不依赖 Python/Tkinter。界面使用左侧设置栏、顶部会话栏、圆角消息气泡和中文状态文案。源码在：
 
 ```text
 clients/desktop/winforms/AiProject1Client.cs

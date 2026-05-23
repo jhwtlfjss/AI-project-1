@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -10,6 +11,29 @@ using System.Windows.Forms;
 
 namespace AIProject1
 {
+    internal static class Theme
+    {
+        public static readonly Color Sidebar = Color.FromArgb(17, 24, 39);
+        public static readonly Color SidebarCard = Color.FromArgb(31, 41, 55);
+        public static readonly Color SidebarInput = Color.FromArgb(55, 65, 81);
+        public static readonly Color Main = Color.FromArgb(245, 247, 251);
+        public static readonly Color Surface = Color.White;
+        public static readonly Color Text = Color.FromArgb(17, 24, 39);
+        public static readonly Color Muted = Color.FromArgb(107, 114, 128);
+        public static readonly Color SidebarMuted = Color.FromArgb(209, 213, 219);
+        public static readonly Color Accent = Color.FromArgb(59, 130, 246);
+        public static readonly Color AccentDark = Color.FromArgb(37, 99, 235);
+        public static readonly Color UserBubble = Color.FromArgb(149, 236, 105);
+        public static readonly Color AssistantBubble = Color.White;
+        public static readonly Color SystemBubble = Color.FromArgb(229, 234, 242);
+        public static readonly Color Line = Color.FromArgb(224, 229, 237);
+
+        public static readonly Font UiFont = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular);
+        public static readonly Font UiFontBold = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+        public static readonly Font TitleFont = new Font("Microsoft YaHei UI", 15F, FontStyle.Bold);
+        public static readonly Font MessageFont = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular);
+    }
+
     public sealed class ChatForm : Form
     {
         private readonly string configDir;
@@ -42,15 +66,17 @@ namespace AIProject1
             configPath = Path.Combine(configDir, "desktop_client_settings.json");
 
             Text = "AI Project 1";
-            MinimumSize = new Size(900, 600);
-            Size = new Size(1120, 760);
+            MinimumSize = new Size(960, 640);
+            Size = new Size(1160, 780);
             StartPosition = FormStartPosition.CenterScreen;
-            BackColor = Color.FromArgb(238, 242, 245);
+            BackColor = Theme.Main;
+            Font = Theme.UiFont;
             Icon = LoadAppIcon();
+            DoubleBuffered = true;
 
             BuildUi();
             LoadSettings();
-            AddMessage("System", "连接主设备 Hub 后就可以开始聊天。", false, true);
+            AddMessage("系统", "连接主设备后就可以开始聊天。", false, true);
         }
 
         private Icon LoadAppIcon()
@@ -74,14 +100,14 @@ namespace AIProject1
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 2;
             root.RowCount = 1;
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
             var sidebar = new Panel();
             sidebar.Dock = DockStyle.Fill;
-            sidebar.BackColor = Color.FromArgb(32, 34, 37);
-            sidebar.Padding = new Padding(14);
+            sidebar.BackColor = Theme.Sidebar;
+            sidebar.Padding = new Padding(18);
             root.Controls.Add(sidebar, 0, 0);
 
             var sideFlow = new FlowLayoutPanel();
@@ -89,59 +115,49 @@ namespace AIProject1
             sideFlow.FlowDirection = FlowDirection.TopDown;
             sideFlow.WrapContents = false;
             sideFlow.AutoScroll = true;
-            sideFlow.BackColor = sidebar.BackColor;
+            sideFlow.BackColor = Theme.Sidebar;
             sidebar.Controls.Add(sideFlow);
 
-            var brand = new Label();
-            brand.Text = "AI Project 1\r\nprivate companion hub";
-            brand.ForeColor = Color.White;
-            brand.BackColor = sidebar.BackColor;
-            brand.Font = new Font("Segoe UI", 16, FontStyle.Bold);
-            brand.Width = 260;
-            brand.Height = 70;
-            sideFlow.Controls.Add(brand);
+            sideFlow.Controls.Add(BuildBrand());
 
             serverBox = new TextBox();
             tokenBox = new TextBox();
             tokenBox.UseSystemPasswordChar = true;
             clientBox = new TextBox();
-            selfSignedBox = new CheckBox();
-            selfSignedBox.Text = "Self-signed HTTPS";
-            AddCard(sideFlow, "Connection", new Control[]
+            selfSignedBox = Check("信任自签 HTTPS");
+            AddCard(sideFlow, "连接设置", new Control[]
             {
-                Field("Server", serverBox),
-                Field("Token", tokenBox),
-                Field("Client", clientBox),
-                StyledCheck(selfSignedBox),
-                SidebarButton("Connect", ConnectClicked, true),
-                SidebarButton("Save Settings", SaveClicked, false)
+                Field("服务地址", serverBox),
+                Field("访问令牌", tokenBox),
+                Field("设备名称", clientBox),
+                selfSignedBox,
+                SidebarButton("连接主设备", ConnectClicked, true),
+                SidebarButton("保存设置", SaveClicked, false)
             });
 
-            liveSearchBox = new CheckBox();
-            liveSearchBox.Text = "Live web search";
-            autoLookupBox = new CheckBox();
-            autoLookupBox.Text = "Auto lookup triggers";
+            liveSearchBox = Check("允许联网搜索");
+            autoLookupBox = Check("按触发词自动搜索");
             searchEngineBox = new ComboBox();
             searchEngineBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            searchEngineBox.Items.AddRange(new object[] { "google", "baidu", "custom" });
+            searchEngineBox.Items.AddRange(new object[] { "Google", "Baidu", "自定义" });
             searchEngineBox.SelectedIndexChanged += delegate { UpdateCustomSearchState(); };
             customSearchBox = new TextBox();
-            AddCard(sideFlow, "Search", new Control[]
+            AddCard(sideFlow, "联网搜索", new Control[]
             {
-                StyledCheck(liveSearchBox),
-                StyledCheck(autoLookupBox),
-                Field("Engine", searchEngineBox),
-                Field("Custom URL", customSearchBox)
+                liveSearchBox,
+                autoLookupBox,
+                Field("搜索引擎", searchEngineBox),
+                Field("自定义搜索页", customSearchBox)
             });
 
-            statusLabel = SideStatus("Not connected");
-            hubLabel = SideStatus("Hub: -");
-            memoryLabel = SideStatus("Memory: -");
-            knowledgeLabel = SideStatus("Knowledge: -");
-            searchLabel = SideStatus("Search: -");
-            AddCard(sideFlow, "Chat", new Control[]
+            statusLabel = SideStatus("状态：未连接");
+            hubLabel = SideStatus("主设备：-");
+            memoryLabel = SideStatus("记忆：-");
+            knowledgeLabel = SideStatus("知识库：-");
+            searchLabel = SideStatus("搜索：-");
+            AddCard(sideFlow, "会话", new Control[]
             {
-                SidebarButton("Clear Screen", ClearClicked, false),
+                SidebarButton("清空屏幕", ClearClicked, false),
                 statusLabel,
                 hubLabel,
                 memoryLabel,
@@ -153,91 +169,182 @@ namespace AIProject1
             main.Dock = DockStyle.Fill;
             main.RowCount = 3;
             main.ColumnCount = 1;
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
-            main.BackColor = Color.FromArgb(238, 242, 245);
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 102));
+            main.BackColor = Theme.Main;
             root.Controls.Add(main, 1, 0);
 
-            var header = new Panel();
-            header.BackColor = Color.White;
-            header.Dock = DockStyle.Fill;
-            main.Controls.Add(header, 0, 0);
+            main.Controls.Add(BuildHeader(), 0, 0);
+            main.Controls.Add(BuildMessages(), 0, 1);
+            main.Controls.Add(BuildComposer(), 0, 2);
+        }
+
+        private Control BuildBrand()
+        {
+            var panel = new Panel();
+            panel.Width = 282;
+            panel.Height = 82;
+            panel.Margin = new Padding(0, 0, 0, 18);
+            panel.BackColor = Theme.Sidebar;
+
+            var avatar = new AvatarControl();
+            avatar.Text = "AI";
+            avatar.FillColor = Theme.Accent;
+            avatar.Location = new Point(0, 12);
+            panel.Controls.Add(avatar);
 
             var title = new Label();
-            title.Text = "AI Project 1\r\n三语陪伴模型 · 主设备 Hub";
-            title.Font = new Font("Microsoft YaHei UI", 13, FontStyle.Bold);
-            title.ForeColor = Color.FromArgb(17, 24, 39);
-            title.AutoSize = false;
-            title.Location = new Point(20, 14);
-            title.Size = new Size(450, 50);
+            title.Text = "AI Project 1";
+            title.ForeColor = Color.White;
+            title.BackColor = Theme.Sidebar;
+            title.Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold);
+            title.Location = new Point(56, 12);
+            title.Size = new Size(220, 30);
+            panel.Controls.Add(title);
+
+            var sub = new Label();
+            sub.Text = "私人陪伴中枢";
+            sub.ForeColor = Theme.SidebarMuted;
+            sub.BackColor = Theme.Sidebar;
+            sub.Font = Theme.UiFont;
+            sub.Location = new Point(58, 45);
+            sub.Size = new Size(220, 24);
+            panel.Controls.Add(sub);
+            return panel;
+        }
+
+        private Control BuildHeader()
+        {
+            var header = new Panel();
+            header.Dock = DockStyle.Fill;
+            header.BackColor = Theme.Surface;
+            header.Padding = new Padding(22, 0, 22, 0);
+
+            var avatar = new AvatarControl();
+            avatar.Text = "她";
+            avatar.FillColor = Color.FromArgb(236, 72, 153);
+            avatar.Location = new Point(22, 17);
+            header.Controls.Add(avatar);
+
+            var title = new Label();
+            title.Text = "AI Project 1";
+            title.Font = Theme.TitleFont;
+            title.ForeColor = Theme.Text;
+            title.BackColor = Theme.Surface;
+            title.Location = new Point(78, 13);
+            title.Size = new Size(420, 30);
             header.Controls.Add(title);
 
-            var reconnect = new Button();
-            reconnect.Text = "Reconnect";
-            reconnect.Width = 110;
-            reconnect.Height = 34;
+            var subtitle = new Label();
+            subtitle.Text = "三语陪伴模型 · 中文 / 日语 / English";
+            subtitle.Font = Theme.UiFont;
+            subtitle.ForeColor = Theme.Muted;
+            subtitle.BackColor = Theme.Surface;
+            subtitle.Location = new Point(80, 43);
+            subtitle.Size = new Size(420, 24);
+            header.Controls.Add(subtitle);
+
+            var reconnect = HeaderButton("重新连接");
             reconnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            reconnect.Location = new Point(header.Width - 130, 19);
+            reconnect.Location = new Point(header.Width - 132, 20);
             reconnect.Click += ConnectClicked;
-            header.Resize += delegate { reconnect.Location = new Point(header.Width - 130, 19); };
+            header.Resize += delegate { reconnect.Location = new Point(header.Width - 132, 20); };
             header.Controls.Add(reconnect);
 
+            var line = new Panel();
+            line.BackColor = Theme.Line;
+            line.Dock = DockStyle.Bottom;
+            line.Height = 1;
+            header.Controls.Add(line);
+            return header;
+        }
+
+        private Control BuildMessages()
+        {
             messageList = new FlowLayoutPanel();
             messageList.Dock = DockStyle.Fill;
             messageList.FlowDirection = FlowDirection.TopDown;
             messageList.WrapContents = false;
             messageList.AutoScroll = true;
-            messageList.BackColor = Color.FromArgb(238, 242, 245);
-            messageList.Padding = new Padding(18, 12, 18, 12);
-            main.Controls.Add(messageList, 0, 1);
+            messageList.BackColor = Theme.Main;
+            messageList.Padding = new Padding(22, 18, 22, 18);
+            messageList.Resize += delegate { RelayoutMessages(); };
+            return messageList;
+        }
 
-            var composer = new TableLayoutPanel();
-            composer.BackColor = Color.White;
-            composer.Dock = DockStyle.Fill;
-            composer.ColumnCount = 2;
-            composer.RowCount = 1;
-            composer.Padding = new Padding(18, 14, 18, 14);
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            composer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
-            main.Controls.Add(composer, 0, 2);
+        private Control BuildComposer()
+        {
+            var outer = new Panel();
+            outer.Dock = DockStyle.Fill;
+            outer.BackColor = Theme.Surface;
+            outer.Padding = new Padding(22, 16, 22, 16);
+
+            var line = new Panel();
+            line.BackColor = Theme.Line;
+            line.Dock = DockStyle.Top;
+            line.Height = 1;
+            outer.Controls.Add(line);
+
+            var table = new TableLayoutPanel();
+            table.Dock = DockStyle.Fill;
+            table.ColumnCount = 2;
+            table.RowCount = 1;
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            table.BackColor = Theme.Surface;
+            table.Padding = new Padding(0, 8, 0, 0);
+            outer.Controls.Add(table);
 
             inputBox = new TextBox();
             inputBox.Multiline = true;
+            inputBox.BorderStyle = BorderStyle.None;
             inputBox.Dock = DockStyle.Fill;
-            inputBox.BorderStyle = BorderStyle.FixedSingle;
-            inputBox.Font = new Font("Microsoft YaHei UI", 10);
+            inputBox.Font = new Font("Microsoft YaHei UI", 11F);
+            inputBox.BackColor = Color.FromArgb(243, 246, 250);
+            inputBox.ForeColor = Theme.Text;
             inputBox.KeyDown += InputKeyDown;
-            composer.Controls.Add(inputBox, 0, 0);
+            inputBox.Margin = new Padding(12, 10, 12, 8);
 
-            sendButton = new Button();
-            sendButton.Text = "Send";
+            var inputShell = new RoundedPanel();
+            inputShell.FillColor = Color.FromArgb(243, 246, 250);
+            inputShell.BorderColor = Color.FromArgb(226, 232, 240);
+            inputShell.Radius = 18;
+            inputShell.Padding = new Padding(12, 10, 12, 10);
+            inputShell.Dock = DockStyle.Fill;
+            inputShell.Controls.Add(inputBox);
+            table.Controls.Add(inputShell, 0, 0);
+
+            sendButton = HeaderButton("发送");
             sendButton.Dock = DockStyle.Fill;
-            sendButton.BackColor = Color.FromArgb(88, 101, 242);
+            sendButton.BackColor = Theme.Accent;
             sendButton.ForeColor = Color.White;
-            sendButton.FlatStyle = FlatStyle.Flat;
+            sendButton.Font = Theme.UiFontBold;
             sendButton.Click += SendClicked;
-            composer.Controls.Add(sendButton, 1, 0);
+            table.Controls.Add(sendButton, 1, 0);
+            return outer;
         }
 
         private void AddCard(FlowLayoutPanel parent, string title, Control[] controls)
         {
-            var card = new FlowLayoutPanel();
+            var card = new RoundedFlowPanel();
             card.FlowDirection = FlowDirection.TopDown;
             card.WrapContents = false;
-            card.Width = 270;
+            card.Width = 282;
             card.AutoSize = true;
-            card.Padding = new Padding(12);
-            card.Margin = new Padding(0, 0, 0, 12);
-            card.BackColor = Color.FromArgb(47, 49, 54);
+            card.Padding = new Padding(14, 12, 14, 14);
+            card.Margin = new Padding(0, 0, 0, 14);
+            card.FillColor = Theme.SidebarCard;
+            card.BorderColor = Color.FromArgb(55, 65, 81);
+            card.Radius = 18;
 
             var label = new Label();
             label.Text = title;
             label.ForeColor = Color.White;
-            label.BackColor = card.BackColor;
-            label.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-            label.Width = 238;
-            label.Height = 24;
+            label.BackColor = Theme.SidebarCard;
+            label.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
+            label.Width = 248;
+            label.Height = 26;
             card.Controls.Add(label);
 
             foreach (Control control in controls)
@@ -250,34 +357,46 @@ namespace AIProject1
         private Control Field(string labelText, Control input)
         {
             var panel = new Panel();
-            panel.Width = 238;
-            panel.Height = 54;
-            panel.BackColor = Color.FromArgb(47, 49, 54);
+            panel.Width = 248;
+            panel.Height = 58;
+            panel.BackColor = Theme.SidebarCard;
+            panel.Margin = new Padding(0, 4, 0, 3);
 
             var label = new Label();
             label.Text = labelText;
-            label.ForeColor = Color.FromArgb(185, 187, 190);
-            label.BackColor = panel.BackColor;
-            label.Font = new Font("Segoe UI", 9);
+            label.ForeColor = Theme.SidebarMuted;
+            label.BackColor = Theme.SidebarCard;
+            label.Font = Theme.UiFont;
             label.Location = new Point(0, 0);
-            label.Size = new Size(238, 18);
+            label.Size = new Size(248, 20);
             panel.Controls.Add(label);
 
-            input.Location = new Point(0, 20);
-            input.Width = 238;
-            input.Height = 24;
-            input.BackColor = Color.FromArgb(64, 68, 75);
+            input.Location = new Point(0, 23);
+            input.Width = 248;
+            input.Height = 27;
+            input.Font = Theme.UiFont;
+            input.BackColor = Theme.SidebarInput;
             input.ForeColor = Color.White;
+            input.Margin = new Padding(0);
+            if (input is TextBox)
+            {
+                ((TextBox)input).BorderStyle = BorderStyle.FixedSingle;
+            }
             panel.Controls.Add(input);
             return panel;
         }
 
-        private Control StyledCheck(CheckBox box)
+        private CheckBox Check(string text)
         {
-            box.Width = 238;
-            box.Height = 28;
+            var box = new CheckBox();
+            box.Text = text;
+            box.Width = 248;
+            box.Height = 30;
             box.ForeColor = Color.White;
-            box.BackColor = Color.FromArgb(47, 49, 54);
+            box.BackColor = Theme.SidebarCard;
+            box.FlatStyle = FlatStyle.Flat;
+            box.Font = Theme.UiFont;
+            box.Margin = new Padding(0, 2, 0, 2);
             return box;
         }
 
@@ -285,13 +404,31 @@ namespace AIProject1
         {
             var button = new Button();
             button.Text = text;
-            button.Width = 238;
-            button.Height = 34;
-            button.Margin = new Padding(0, 6, 0, 0);
+            button.Width = 248;
+            button.Height = 36;
+            button.Margin = new Padding(0, 8, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
-            button.BackColor = accent ? Color.FromArgb(88, 101, 242) : Color.FromArgb(64, 68, 75);
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = accent ? Theme.Accent : Color.FromArgb(55, 65, 81);
             button.ForeColor = Color.White;
+            button.Font = Theme.UiFontBold;
+            button.Cursor = Cursors.Hand;
             button.Click += handler;
+            return button;
+        }
+
+        private Button HeaderButton(string text)
+        {
+            var button = new Button();
+            button.Text = text;
+            button.Width = 110;
+            button.Height = 36;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = Theme.Accent;
+            button.ForeColor = Color.White;
+            button.Font = Theme.UiFontBold;
+            button.Cursor = Cursors.Hand;
             return button;
         }
 
@@ -299,12 +436,13 @@ namespace AIProject1
         {
             var label = new Label();
             label.Text = text;
-            label.Width = 238;
+            label.Width = 248;
             label.AutoSize = false;
-            label.Height = 34;
-            label.ForeColor = Color.FromArgb(185, 187, 190);
-            label.BackColor = Color.FromArgb(47, 49, 54);
-            label.Font = new Font("Segoe UI", 9);
+            label.Height = 28;
+            label.ForeColor = Theme.SidebarMuted;
+            label.BackColor = Theme.SidebarCard;
+            label.Font = Theme.UiFont;
+            label.Margin = new Padding(0, 5, 0, 0);
             return label;
         }
 
@@ -314,7 +452,7 @@ namespace AIProject1
             clientBox.Text = Environment.MachineName;
             liveSearchBox.Checked = true;
             autoLookupBox.Checked = true;
-            searchEngineBox.SelectedItem = "google";
+            searchEngineBox.SelectedItem = "Google";
 
             if (File.Exists(configPath))
             {
@@ -328,7 +466,7 @@ namespace AIProject1
                     liveSearchBox.Checked = GetBool(data, "search_enabled", true);
                     autoLookupBox.Checked = GetBool(data, "search_auto_lookup", true);
                     string engine = GetString(data, "search_engine", "google");
-                    searchEngineBox.SelectedItem = searchEngineBox.Items.Contains(engine) ? engine : "google";
+                    searchEngineBox.SelectedItem = EngineDisplayName(engine);
                     SetText(customSearchBox, data, "custom_search_url", "");
                 }
                 catch
@@ -356,13 +494,13 @@ namespace AIProject1
         private void SaveClicked(object sender, EventArgs e)
         {
             SaveSettings();
-            statusLabel.Text = "Settings saved";
+            statusLabel.Text = "状态：设置已保存";
         }
 
         private void ConnectClicked(object sender, EventArgs e)
         {
             SaveSettings();
-            statusLabel.Text = "Connecting...";
+            statusLabel.Text = "状态：正在连接...";
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -374,8 +512,8 @@ namespace AIProject1
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        statusLabel.Text = "Connection failed";
-                        AddMessage("System", "Connection failed: " + ex.Message, false, true);
+                        statusLabel.Text = "状态：连接失败";
+                        AddMessage("系统", "连接失败：" + ex.Message, false, true);
                     }));
                 }
             });
@@ -406,8 +544,8 @@ namespace AIProject1
             inputBox.Clear();
             AddMessage("我", message, true, false);
             sendButton.Enabled = false;
-            sendButton.Text = "...";
-            statusLabel.Text = "Thinking...";
+            sendButton.Text = "思考中";
+            statusLabel.Text = "状态：思考中...";
 
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -420,9 +558,9 @@ namespace AIProject1
                     string reply = GetString(response, "reply", "");
                     BeginInvoke(new Action(delegate
                     {
-                        AddMessage("AI Project 1", reply, false, false);
-                        statusLabel.Text = "Connected";
-                        sendButton.Text = "Send";
+                        AddMessage("她", reply, false, false);
+                        statusLabel.Text = "状态：已连接";
+                        sendButton.Text = "发送";
                         sendButton.Enabled = true;
                     }));
                 }
@@ -430,9 +568,9 @@ namespace AIProject1
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        AddMessage("System", "Send failed: " + ex.Message, false, true);
-                        statusLabel.Text = "Send failed";
-                        sendButton.Text = "Send";
+                        AddMessage("系统", "发送失败：" + ex.Message, false, true);
+                        statusLabel.Text = "状态：发送失败";
+                        sendButton.Text = "发送";
                         sendButton.Enabled = true;
                     }));
                 }
@@ -444,7 +582,7 @@ namespace AIProject1
             string baseUrl = serverBox.Text.Trim().TrimEnd('/');
             if (!baseUrl.StartsWith("http://") && !baseUrl.StartsWith("https://"))
             {
-                throw new InvalidOperationException("Server must start with http:// or https://");
+                throw new InvalidOperationException("服务地址必须以 http:// 或 https:// 开头");
             }
 
             if (selfSignedBox.Checked)
@@ -508,52 +646,94 @@ namespace AIProject1
 
         private void ShowStatus(Dictionary<string, object> status)
         {
-            statusLabel.Text = "Connected: " + (GetBool(status, "ready", false) ? "ready" : "no model")
-                + ", device=" + GetString(status, "device", "-");
-            hubLabel.Text = "Hub: -";
+            statusLabel.Text = "状态：" + (GetBool(status, "ready", false) ? "模型已就绪" : "未加载模型")
+                + " · " + GetString(status, "device", "-");
+            hubLabel.Text = "主设备：-";
             if (status.ContainsKey("hub") && status["hub"] is Dictionary<string, object>)
             {
                 var hub = (Dictionary<string, object>)status["hub"];
-                hubLabel.Text = "Hub: " + GetString(hub, "hub_name", "-");
+                hubLabel.Text = "主设备：" + GetString(hub, "hub_name", "-");
             }
-            memoryLabel.Text = "Memory: " + GetString(status, "memory_facts", "0") + " facts, "
-                + GetString(status, "memory_turns", "0") + " turns";
-            knowledgeLabel.Text = "Knowledge: " + GetString(status, "knowledge_entries", "0") + " notes";
-            searchLabel.Text = GetBool(status, "live_web", false) ? "Search: enabled on Hub" : "Search: disabled on Hub";
-            AddMessage("System", "已连接到主设备 Hub。", false, true);
+            memoryLabel.Text = "记忆：" + GetString(status, "memory_facts", "0") + " 条事实，"
+                + GetString(status, "memory_turns", "0") + " 轮对话";
+            knowledgeLabel.Text = "知识库：" + GetString(status, "knowledge_entries", "0") + " 条记录";
+            searchLabel.Text = GetBool(status, "live_web", false) ? "搜索：主设备已开启" : "搜索：主设备未开启";
+            AddMessage("系统", "已连接到主设备。", false, true);
         }
 
         private void AddMessage(string speaker, string text, bool mine, bool system)
         {
+            int listWidth = Math.Max(680, messageList.ClientSize.Width - 48);
             var row = new Panel();
-            row.Width = Math.Max(600, messageList.ClientSize.Width - 40);
+            row.Width = listWidth;
             row.Height = 10;
-            row.Margin = new Padding(0, 0, 0, 10);
+            row.Margin = new Padding(0, 0, 0, 14);
             row.BackColor = messageList.BackColor;
 
-            var bubble = new Label();
-            bubble.Text = speaker + " · " + DateTime.Now.ToString("HH:mm") + "\r\n" + text;
-            bubble.Font = new Font("Microsoft YaHei UI", 10);
-            bubble.ForeColor = Color.FromArgb(17, 24, 39);
-            bubble.BackColor = system ? Color.FromArgb(221, 227, 234) : (mine ? Color.FromArgb(149, 236, 105) : Color.White);
-            bubble.Padding = new Padding(12, 8, 12, 8);
-            bubble.MaximumSize = new Size(Math.Max(320, messageList.ClientSize.Width * 58 / 100), 0);
-            bubble.AutoSize = true;
-            bubble.BorderStyle = BorderStyle.FixedSingle;
+            var avatar = new AvatarControl();
+            avatar.Text = mine ? "我" : (system ? "i" : "她");
+            avatar.FillColor = mine ? Color.FromArgb(34, 197, 94) : (system ? Theme.Muted : Color.FromArgb(236, 72, 153));
+            avatar.Size = new Size(38, 38);
 
+            var bubble = new RoundedPanel();
+            bubble.FillColor = system ? Theme.SystemBubble : (mine ? Theme.UserBubble : Theme.AssistantBubble);
+            bubble.BorderColor = mine ? Color.FromArgb(126, 211, 33) : Theme.Line;
+            bubble.Radius = 18;
+            bubble.Padding = new Padding(14, 10, 14, 10);
+
+            var meta = new Label();
+            meta.Text = speaker + " · " + DateTime.Now.ToString("HH:mm");
+            meta.Font = new Font("Microsoft YaHei UI", 8F);
+            meta.ForeColor = Theme.Muted;
+            meta.BackColor = Color.Transparent;
+            meta.AutoSize = true;
+            meta.Location = new Point(14, 8);
+            bubble.Controls.Add(meta);
+
+            var body = new Label();
+            body.Text = text;
+            body.Font = Theme.MessageFont;
+            body.ForeColor = Theme.Text;
+            body.BackColor = Color.Transparent;
+            body.MaximumSize = new Size(Math.Max(330, listWidth * 58 / 100), 0);
+            body.AutoSize = true;
+            body.Location = new Point(14, 29);
+            bubble.Controls.Add(body);
+
+            int bubbleWidth = Math.Max(120, Math.Max(meta.Width, body.Width) + 28);
+            int bubbleHeight = meta.Height + body.Height + 30;
+            bubble.Size = new Size(bubbleWidth, bubbleHeight);
+
+            row.Controls.Add(avatar);
             row.Controls.Add(bubble);
-            bubble.Location = mine
-                ? new Point(Math.Max(0, row.Width - bubble.Width - 16), 0)
-                : new Point(16, 0);
-            row.Height = bubble.Height + 4;
+            if (mine)
+            {
+                avatar.Location = new Point(listWidth - avatar.Width - 4, 2);
+                bubble.Location = new Point(Math.Max(6, avatar.Left - bubble.Width - 10), 0);
+            }
+            else
+            {
+                avatar.Location = new Point(4, 2);
+                bubble.Location = new Point(avatar.Right + 10, 0);
+            }
+
+            row.Height = Math.Max(avatar.Height, bubble.Height) + 6;
             messageList.Controls.Add(row);
             messageList.ScrollControlIntoView(row);
+        }
+
+        private void RelayoutMessages()
+        {
+            foreach (Control row in messageList.Controls)
+            {
+                row.Width = Math.Max(680, messageList.ClientSize.Width - 48);
+            }
         }
 
         private void ClearClicked(object sender, EventArgs e)
         {
             messageList.Controls.Clear();
-            AddMessage("System", "屏幕已清空。", false, true);
+            AddMessage("系统", "屏幕已清空。", false, true);
         }
 
         private void UpdateCustomSearchState()
@@ -563,7 +743,33 @@ namespace AIProject1
 
         private string SelectedEngine()
         {
-            return searchEngineBox.SelectedItem == null ? "google" : searchEngineBox.SelectedItem.ToString();
+            if (searchEngineBox.SelectedItem == null)
+            {
+                return "google";
+            }
+            string text = searchEngineBox.SelectedItem.ToString();
+            if (text == "Baidu")
+            {
+                return "baidu";
+            }
+            if (text == "自定义")
+            {
+                return "custom";
+            }
+            return "google";
+        }
+
+        private static string EngineDisplayName(string engine)
+        {
+            if (engine == "baidu")
+            {
+                return "Baidu";
+            }
+            if (engine == "custom")
+            {
+                return "自定义";
+            }
+            return "Google";
         }
 
         private static void SetText(TextBox box, Dictionary<string, object> data, string key, string fallback)
@@ -594,6 +800,101 @@ namespace AIProject1
             {
                 return fallback;
             }
+        }
+    }
+
+    internal class RoundedPanel : Panel
+    {
+        public Color FillColor { get; set; }
+        public Color BorderColor { get; set; }
+        public int Radius { get; set; }
+
+        public RoundedPanel()
+        {
+            FillColor = Color.White;
+            BorderColor = Theme.Line;
+            Radius = 16;
+            BackColor = Color.Transparent;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (GraphicsPath path = RoundedRect(rect, Radius))
+            using (SolidBrush brush = new SolidBrush(FillColor))
+            using (Pen pen = new Pen(BorderColor))
+            {
+                e.Graphics.FillPath(brush, path);
+                e.Graphics.DrawPath(pen, path);
+            }
+        }
+
+        public static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            int diameter = radius * 2;
+            var path = new GraphicsPath();
+            path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+    }
+
+    internal sealed class RoundedFlowPanel : FlowLayoutPanel
+    {
+        public Color FillColor { get; set; }
+        public Color BorderColor { get; set; }
+        public int Radius { get; set; }
+
+        public RoundedFlowPanel()
+        {
+            FillColor = Color.White;
+            BorderColor = Theme.Line;
+            Radius = 16;
+            BackColor = Color.Transparent;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (GraphicsPath path = RoundedPanel.RoundedRect(rect, Radius))
+            using (SolidBrush brush = new SolidBrush(FillColor))
+            using (Pen pen = new Pen(BorderColor))
+            {
+                e.Graphics.FillPath(brush, path);
+                e.Graphics.DrawPath(pen, path);
+            }
+            base.OnPaint(e);
+        }
+    }
+
+    internal sealed class AvatarControl : Control
+    {
+        public Color FillColor { get; set; }
+
+        public AvatarControl()
+        {
+            FillColor = Theme.Accent;
+            Size = new Size(42, 42);
+            ForeColor = Color.White;
+            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush brush = new SolidBrush(FillColor))
+            {
+                e.Graphics.FillEllipse(brush, 1, 1, Width - 2, Height - 2);
+            }
+            TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
     }
 
