@@ -1,21 +1,23 @@
 # Desktop Client
 
-电脑端客户端使用项目里的 Tkinter 桌面程序，不需要浏览器。新版入口在：
+电脑端正式可执行客户端是原生 Windows Forms 程序，不需要浏览器，也不依赖 Python/Tkinter。源码在：
 
 ```text
-clients/desktop/app/ai_project1_client.py
+clients/desktop/winforms/AiProject1Client.cs
 ```
 
-启动：
+如果只是开发调试，也可以运行旧的 Python/Tkinter 入口；但正式 exe 不再使用它。
+
+构建正式 exe：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File clients\desktop\start_desktop_client.ps1
+powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1
 ```
 
-或者直接：
+生成位置：
 
-```powershell
-python clients\desktop\app\ai_project1_client.py
+```text
+dist\AI Project 1.exe
 ```
 
 填写：
@@ -44,24 +46,6 @@ Self-signed HTTPS
 - Custom URL: 当 Engine 为 `custom` 时使用，例如 `https://example.com/search?q={query}`。
 
 这些设置会随 `POST /api/chat` 一起发给主设备 Hub，不需要重启客户端。
-
-## 打包为 exe
-
-```powershell
-powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -InstallPyInstaller
-```
-
-生成位置：
-
-```text
-dist\AI Project 1.exe
-```
-
-如果已经在项目里创建 `.venv` 并安装了 PyInstaller：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -Python .\.venv\Scripts\python.exe
-```
 
 ## 安装包
 

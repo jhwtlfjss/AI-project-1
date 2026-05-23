@@ -9,38 +9,36 @@ Set-Location $ProjectDir
 $IconPath = Join-Path $ProjectDir "assets\app_icon.ico"
 $IconPngPath = Join-Path $ProjectDir "assets\app_icon.png"
 $ExePath = Join-Path $ProjectDir "dist\AI Project 1.exe"
+$SourcePath = Join-Path $ProjectDir "clients\desktop\winforms\AiProject1Client.cs"
 
 if (!(Test-Path $IconPath) -or !(Test-Path $IconPngPath)) {
   & $Python scripts\generate_app_icon.py
 }
 
+New-Item -ItemType Directory -Force -Path (Join-Path $ProjectDir "dist") | Out-Null
 if (Test-Path $ExePath) {
   Remove-Item -LiteralPath $ExePath -Force
 }
 
-try {
-  & $Python -m PyInstaller --version | Out-Null
-} catch {
-  if (!$InstallPyInstaller) {
-    Write-Host "PyInstaller is not installed."
-    Write-Host "Run:"
-    Write-Host "powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -InstallPyInstaller"
-    exit 1
-  }
-  & $Python -m pip install pyinstaller
+$Csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if (!(Test-Path $Csc)) {
+  $Csc = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+}
+if (!(Test-Path $Csc)) {
+  throw ".NET Framework C# compiler was not found. This native desktop build does not use Tkinter."
 }
 
-& $Python -m PyInstaller `
-  --noconfirm `
-  --clean `
-  --onefile `
-  --windowed `
-  --name "AI Project 1" `
-  --icon "$IconPath" `
-  --add-data "$IconPngPath;assets" `
-  --add-data "$IconPath;assets" `
-  --paths "$ProjectDir" `
-  clients\desktop\app\ai_project1_client.py
+& $Csc `
+  /nologo `
+  /target:winexe `
+  /out:"$ExePath" `
+  /win32icon:"$IconPath" `
+  /reference:System.dll `
+  /reference:System.Core.dll `
+  /reference:System.Drawing.dll `
+  /reference:System.Web.Extensions.dll `
+  /reference:System.Windows.Forms.dll `
+  "$SourcePath"
 
 Write-Host "Executable:"
 Write-Host $ExePath
