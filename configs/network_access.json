@@ -1,0 +1,30 @@
+{
+  "live_web_enabled": true,
+  "auto_lookup": true,
+  "cache_live_results": true,
+  "max_results": 3,
+  "max_context_chars": 1000,
+  "lookup_triggers": [
+    "查",
+    "搜索",
+    "搜",
+    "联网",
+    "最新",
+    "新闻",
+    "天气",
+    "ニュース",
+    "天気",
+    "調べ",
+    "検索",
+    "最新",
+    "search",
+    "look up",
+    "latest",
+    "news",
+    "weather",
+    "http://",
+    "https://"
+  ],
+  "allowed_domains": [],
+  "blocked_domains": []
+}

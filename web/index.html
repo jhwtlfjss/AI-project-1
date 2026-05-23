@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Companion AI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="chat">
+        <header class="topbar">
+          <div>
+            <h1>My Companion AI</h1>
+            <p id="status">offline local model</p>
+          </div>
+          <button id="clear" title="Clear local screen">清屏</button>
+        </header>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="composer" class="composer">
+          <textarea id="input" rows="2" placeholder="说点什么... / 話してみて... / Say something..."></textarea>
+          <button id="send" type="submit" title="Send">发送</button>
+        </form>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+

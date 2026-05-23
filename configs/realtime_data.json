@@ -1,0 +1,33 @@
+{
+  "enabled": true,
+  "cache_tool_results": true,
+  "max_results": 3,
+  "default_location": "",
+  "allowed_domains": [
+    "nominatim.openstreetmap.org",
+    "api.open-meteo.com"
+  ],
+  "blocked_domains": [],
+  "triggers": [
+    "地址",
+    "位置",
+    "地点",
+    "在哪里",
+    "在哪",
+    "附近",
+    "坐标",
+    "经纬度",
+    "地图",
+    "天气",
+    "住所",
+    "場所",
+    "地図",
+    "天気",
+    "location",
+    "address",
+    "where is",
+    "map",
+    "weather"
+  ]
+}
+

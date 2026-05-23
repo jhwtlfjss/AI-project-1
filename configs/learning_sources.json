@@ -1,0 +1,72 @@
+{
+  "enabled": true,
+  "learning_interval_minutes": 720,
+  "max_items_per_source": 4,
+  "max_summary_chars": 900,
+  "auto_store": true,
+  "blocked_domains": [],
+  "allowed_domains": [],
+  "topics": [
+    {
+      "name": "emotional_companionship",
+      "enabled": true,
+      "keywords": [
+        "empathy",
+        "compassion",
+        "listening",
+        "共情",
+        "倾听",
+        "陪伴",
+        "共感",
+        "傾聴"
+      ],
+      "sources": [
+        {
+          "type": "wikipedia",
+          "lang": "en",
+          "query": "Empathy"
+        },
+        {
+          "type": "wikipedia",
+          "lang": "zh",
+          "query": "共情"
+        },
+        {
+          "type": "wikipedia",
+          "lang": "ja",
+          "query": "共感"
+        }
+      ]
+    },
+    {
+      "name": "language_expression",
+      "enabled": true,
+      "keywords": [
+        "中文",
+        "日语",
+        "English",
+        "表达",
+        "言い方",
+        "phrase",
+        "gentle"
+      ],
+      "sources": [
+        {
+          "type": "wikipedia",
+          "lang": "en",
+          "query": "Chinese language"
+        },
+        {
+          "type": "wikipedia",
+          "lang": "en",
+          "query": "Japanese language"
+        },
+        {
+          "type": "wikipedia",
+          "lang": "en",
+          "query": "English language"
+        }
+      ]
+    }
+  ]
+}
