@@ -5,5 +5,4 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectDir = (Resolve-Path "$PSScriptRoot\..\..").Path
 Set-Location $ProjectDir
-& $Python scripts\desktop_client.py
-
+& $Python clients\desktop\app\ai_project1_client.py

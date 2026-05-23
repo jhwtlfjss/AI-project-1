@@ -21,3 +21,6 @@ logs/
 clients/android/.gradle/
 clients/android/local.properties
 clients/android/**/build/
+build/
+dist/
+*.spec

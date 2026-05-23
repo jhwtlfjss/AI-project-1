@@ -123,7 +123,7 @@ http://家里电脑的Tailscale-IP:8765
 桌面客户端：
 
 ```powershell
-python scripts/desktop_client.py
+python clients\desktop\app\ai_project1_client.py
 ```
 
 或者：
@@ -131,6 +131,26 @@ python scripts/desktop_client.py
 ```powershell
 powershell -ExecutionPolicy Bypass -File clients\desktop\start_desktop_client.ps1
 ```
+
+打包为 Windows 可执行文件：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -Python .\.venv\Scripts\python.exe
+```
+
+生成后直接运行：
+
+```text
+dist\AI Project 1.exe
+```
+
+安装包脚本也已提供：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File clients\desktop\build_installer.ps1
+```
+
+构建安装包需要本机安装 Inno Setup。
 
 命令行客户端：
 
@@ -153,7 +173,7 @@ clients/android
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start_hub.ps1 -NoModel
 python scripts/pair_client.py --port 8765
-python scripts/desktop_client.py
+python clients\desktop\app\ai_project1_client.py
 ```
 
 详细说明见 [docs/MAIN_DEVICE_HUB.md](docs/MAIN_DEVICE_HUB.md)。
