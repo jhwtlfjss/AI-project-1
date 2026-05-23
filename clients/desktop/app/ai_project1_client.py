@@ -72,11 +72,11 @@ class ChatApp(tk.Tk):
         icon_png = resource_path("assets/app_icon.png")
         icon_ico = resource_path("assets/app_icon.ico")
         try:
+            if icon_ico.exists():
+                self.iconbitmap(str(icon_ico))
             if icon_png.exists():
                 self._app_icon = tk.PhotoImage(file=str(icon_png))
                 self.iconphoto(True, self._app_icon)
-            elif icon_ico.exists():
-                self.iconbitmap(str(icon_ico))
         except tk.TclError:
             pass
 

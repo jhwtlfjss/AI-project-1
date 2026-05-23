@@ -8,9 +8,14 @@ $ProjectDir = (Resolve-Path "$PSScriptRoot\..\..").Path
 Set-Location $ProjectDir
 $IconPath = Join-Path $ProjectDir "assets\app_icon.ico"
 $IconPngPath = Join-Path $ProjectDir "assets\app_icon.png"
+$ExePath = Join-Path $ProjectDir "dist\AI Project 1.exe"
 
 if (!(Test-Path $IconPath) -or !(Test-Path $IconPngPath)) {
   & $Python scripts\generate_app_icon.py
+}
+
+if (Test-Path $ExePath) {
+  Remove-Item -LiteralPath $ExePath -Force
 }
 
 try {
@@ -38,4 +43,17 @@ try {
   clients\desktop\app\ai_project1_client.py
 
 Write-Host "Executable:"
-Write-Host (Join-Path $ProjectDir "dist\AI Project 1.exe")
+Write-Host $ExePath
+
+Add-Type -AssemblyName System.Drawing
+$ExtractedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($ExePath)
+if ($null -eq $ExtractedIcon) {
+  throw "Executable was built, but Windows could not extract an associated icon from it."
+}
+Write-Host "Embedded icon:"
+Write-Host "$($ExtractedIcon.Width)x$($ExtractedIcon.Height)"
+
+$IconRefresh = Join-Path $env:WINDIR "System32\ie4uinit.exe"
+if (Test-Path $IconRefresh) {
+  & $IconRefresh -ClearIconCache 2>$null
+}
