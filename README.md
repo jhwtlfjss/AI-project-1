@@ -1,157 +1,190 @@
-# My Companion AI
+# AI Project 1
 
-这是一个从零训练的私人三语恋人陪伴模型工程。它不加载任何现有大模型权重，不使用现成 tokenizer；模型从随机初始化开始学习，支持中文、日语和英语文本。
+AI Project 1 是一个面向个人陪伴场景的从零训练 AI 工程。它的目标不是接入现成大模型，也不是做一个万能助手，而是把一个完全由你自己训练、保存记忆、积累知识、能通过电脑和手机连接的私人三语陪伴模型慢慢养起来。
 
-任意支持 CUDA 的 NVIDIA 显卡都可以用。建议先训练 `tiny_nvidia.json`，稳定后再按显存尝试 `small_nvidia.json`。
+这个项目当前以“恋人式陪伴 / 虚拟女友”为主要体验方向，支持中文、日语和英语文本。模型权重从随机初始化开始训练，不加载现有 LLM 权重；项目使用自己的 byte-level tokenizer，不依赖外部模型 API。
 
-## 这个版本的边界
+## 项目目标
 
-- 它会先很笨，需要数据慢慢养。
-- 它适合短句陪伴、倾听、温柔回应，不适合百科、推理或复杂任务。
-- 如果你要求“完全属于自己”，训练数据也应该尽量使用你自己写的、授权的、或明确可用的数据。
-- 手机连接建议只开在家庭局域网，不要直接暴露到公网。
+- 从零训练一个属于自己的小型语言模型。
+- 支持中文、日语、英语的日常陪伴对话。
+- 保存长期记忆、近期对话和本地知识库。
+- 支持联网获取资料，并把有用内容沉淀进本地知识库。
+- 使用主设备作为模型 Hub，电脑客户端和 Android 客户端都连接到主设备。
+- 尽量把核心数据留在自己电脑上：模型、记忆、知识库、对话日志都由本地保存。
 
-## 安装
+## 当前状态
 
-创建 Python 环境后安装 PyTorch。PyTorch 的 CUDA 安装命令会随版本变化，建议使用 PyTorch 官网安装选择器生成 Windows + pip + CUDA 的命令。
+| 模块 | 状态 |
+| --- | --- |
+| 从零训练 GPT 模型 | 已实现 |
+| 中文 / 日语 / 英语 byte-level 文本训练 | 已实现 |
+| NVIDIA/CUDA 显卡训练 | 已支持，自动选择空闲显存最多的显卡 |
+| 本地命令行聊天 | 已实现 |
+| 主设备 Hub / 局域网服务 | 已实现 |
+| 访问 token | 已实现 |
+| 长期记忆 `memory.json` | 已实现 |
+| 本地知识库 `data/knowledge.jsonl` | 已实现 |
+| 实时网页、地址、天气等工具 | 已实现 |
+| 虚拟女友人格配置 | 已实现 |
+| 真实对话转训练样本的成长循环 | 已实现 |
+| Windows 桌面客户端 | 已实现 |
+| Windows exe 打包脚本 | 已实现 |
+| Windows 安装包脚本 | 已提供，需要本机安装 Inno Setup |
+| Android 原生客户端源码 | 已实现，需要 Android Studio 构建 APK |
 
-安装好后，在项目根目录检查：
+## 重要边界
+
+这是一个训练工程，不是一个已经训练好的成品模型。刚开始她会很笨，需要你用数据、对话、审核样本和持续训练慢慢塑造。
+
+这个模型适合做短句陪伴、倾听、情绪回应和个人风格养成，不适合百科问答、复杂推理、专业医疗、法律或金融建议。联网和实时工具可以补充信息，但不会把它变成大型通用模型。
+
+如果你追求“完全属于自己”，训练数据也应该尽量使用你自己写的、授权的、或明确可用的数据。模型越像你想要的样子，关键不只是参数大小，而是数据质量、人格边界和反复训练。
+
+## 项目结构
+
+```text
+companion_ai/       核心模型、生成、记忆、知识库、联网和人格逻辑
+configs/            训练配置、人格配置、联网配置、实时数据配置
+scripts/            训练、聊天、服务端、自主学习、成长循环脚本
+clients/desktop/    Windows 桌面客户端和 exe/installer 打包脚本
+clients/android/    Android 原生客户端工程
+data/raw/           你的原始训练数据
+docs/               远程访问、自主学习、主设备 Hub、成长循环等详细说明
+eval/               固定测试问题，用来观察训练效果
+web/                局域网页面客户端
+```
+
+## 最短运行路线
+
+先创建 Python 环境并安装 PyTorch。CUDA 版 PyTorch 的安装命令会随版本变化，建议按 PyTorch 官网的 Windows + pip + CUDA 选项生成命令。
+
+检查环境：
 
 ```powershell
 python scripts/check_env.py
 ```
 
-## 准备数据
-
-把你自己的训练文本放进：
-
-```text
-data/raw/
-```
-
-支持 `.txt` 和 `.jsonl`。格式示例见 [data/raw/README.md](data/raw/README.md)。
-
-然后构建训练数据：
+准备训练数据：
 
 ```powershell
 python scripts/prepare_data.py --raw-dir data/raw --out-dir data
 ```
 
-## 训练
-
-先跑一个小配置验证：
+先用 CPU 小配置跑通流程：
 
 ```powershell
 python scripts/train.py --config configs/micro_cpu.json
 ```
 
-确认流程正常后用 NVIDIA 显卡：
+确认流程正常后，用 NVIDIA 显卡训练：
 
 ```powershell
 python scripts/train.py --config configs/tiny_nvidia.json
 ```
 
-训练脚本会自动使用可用的 CUDA 显卡；多显卡机器会优先选择空闲显存最多的一张。你也可以手动指定：
+训练完成后聊天：
+
+```powershell
+python scripts/chat_cli.py --checkpoint runs/tiny-lover/ckpt.pt
+```
+
+如果你还没有 `runs/tiny-lover/ckpt.pt`，说明模型还没训练出来，需要先完成训练步骤。
+
+## NVIDIA 显卡训练
+
+`configs/tiny_nvidia.json` 和 `configs/small_nvidia.json` 都不是 3080 专用配置。任意支持 CUDA 的 NVIDIA 显卡都可以使用。
+
+默认情况下，训练脚本会自动选择可用的 CUDA 显卡；多显卡机器会优先选择空闲显存最多的一张。
+
+手动指定显卡：
 
 ```powershell
 python scripts/train.py --config configs/tiny_nvidia.json --device cuda:0
 python scripts/train.py --config configs/tiny_nvidia.json --device cuda:1
 ```
 
-如果显存够、数据够多，再尝试：
-
-```powershell
-python scripts/train.py --config configs/small_nvidia.json
-```
-
-如果显存较小，可以临时降低每步显存占用：
+显存较小可以降低 batch size：
 
 ```powershell
 python scripts/train.py --config configs/tiny_nvidia.json --batch-size 8 --grad-accum-steps 8
 ```
 
-## 本地聊天
+数据量更大、显存更充足后再尝试：
 
 ```powershell
-python scripts/chat_cli.py --checkpoint runs/tiny-lover/ckpt.pt
+python scripts/train.py --config configs/small_nvidia.json
 ```
 
-正常模式会保存：
+## 训练数据
 
-- `memory.json`: 你们之间的偏好、称呼、事实和最近对话
-- `data/knowledge.jsonl`: 自主学习、实时网络和实时工具查到的资料
+把你自己的 `.txt` 或 `.jsonl` 文件放进：
 
-如果只是临时调试、不想保存网络资料，可以关闭知识缓存：
-
-```powershell
-python scripts/chat_cli.py --checkpoint runs/tiny-lover/ckpt.pt --live-web --no-knowledge-cache
+```text
+data/raw/
 ```
 
-## 手机局域网聊天
+推荐数据方向：
 
-电脑和手机连同一个 Wi-Fi，然后启动：
+- 你希望她使用的称呼、语气和亲密程度。
+- 中文、日语、英语的日常陪伴对话。
+- 你喜欢的安慰方式、边界表达和相处节奏。
+- 你不希望她说的话，也可以作为反例或边界说明加入数据。
 
-```powershell
-python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 --port 8765
+格式示例见 [data/raw/README.md](data/raw/README.md)。
+
+## 记忆和知识库
+
+正常聊天会保存两类数据：
+
+```text
+memory.json
+data/knowledge.jsonl
 ```
 
-带实时网络、地址和天气工具，并保存到知识库：
+`memory.json` 保存你们之间的偏好、称呼、事实和近期对话摘要。`data/knowledge.jsonl` 保存自主学习、实时网页和工具查询得到的资料。
+
+这些文件默认不会提交到 GitHub，因为它们会包含私人内容。
+
+## 主设备 Hub
+
+主设备负责运行模型、保存记忆和知识库。其他电脑或手机只作为客户端连接它。
+
+局域网启动：
 
 ```powershell
 python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 --port 8765 --live-web
 ```
 
-如果只是临时调试、不读取也不写入 `data/knowledge.jsonl`：
-
-```powershell
-python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 --port 8765 --live-web --no-knowledge-cache
-```
-
-在手机浏览器打开：
-
-```text
-http://你的电脑局域网IP:8765
-```
-
-可以用下面命令查看电脑 IP：
-
-```powershell
-ipconfig
-```
-
-## 外出访问和客户端
-
-现在服务端支持访问令牌，首次启动会自动生成：
+首次启动会生成：
 
 ```text
 data/server_token.txt
 ```
 
-如果你接受私有网络工具，推荐用 Tailscale 把家里电脑和手机/笔记本放进同一个私有网络，然后从外面连接：
+客户端连接时需要填写服务端地址和 token。
 
-```text
-http://家里电脑的Tailscale-IP:8765
-```
+## Windows 桌面客户端
 
-桌面客户端：
+启动桌面客户端：
 
 ```powershell
 python clients\desktop\app\ai_project1_client.py
 ```
 
-或者：
+或：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File clients\desktop\start_desktop_client.ps1
 ```
 
-打包为 Windows 可执行文件：
+打包为 exe：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -Python .\.venv\Scripts\python.exe
+powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1 -InstallPyInstaller
 ```
 
-生成后直接运行：
+生成位置：
 
 ```text
 dist\AI Project 1.exe
@@ -165,43 +198,37 @@ powershell -ExecutionPolicy Bypass -File clients\desktop\build_installer.ps1
 
 构建安装包需要本机安装 Inno Setup。
 
-命令行客户端：
+## Android 客户端
 
-```powershell
-python scripts/client_cli.py --server http://100.x.y.z:8765 --token 你的token
-```
-
-详细说明见 [docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md)。
-
-安卓客户端源码在：
+Android 客户端源码在：
 
 ```text
 clients/android
 ```
 
-用 Android Studio 打开后可以构建 APK。详细说明见 [clients/android/README.md](clients/android/README.md)。
+用 Android Studio 打开后可以构建 APK。手机端不运行模型，只连接主设备 Hub：
 
-如果暂时不搭外部服务器，而是让自己的主设备作为私人中转 Hub：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/start_hub.ps1 -NoModel
-python scripts/pair_client.py --port 8765
-python clients\desktop\app\ai_project1_client.py
+```text
+Android App -> 主设备 Hub -> 模型 / 记忆 / 知识库 / 实时工具
 ```
 
-详细说明见 [docs/MAIN_DEVICE_HUB.md](docs/MAIN_DEVICE_HUB.md)。
+详细说明见 [clients/android/README.md](clients/android/README.md)。
 
-如果你希望完全不依赖第三方隧道，走你自己的公网 IP/域名 + 路由器端口转发：
+## 外出访问
 
-```powershell
-python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 --port 8765 --live-web
-```
+推荐把主设备和手机放进同一个私有网络，例如 Tailscale，然后让客户端连接主设备的私有 IP。
 
-直连方案说明见 [docs/OWNED_DIRECT_ACCESS.md](docs/OWNED_DIRECT_ACCESS.md)。
+如果你希望完全不依赖第三方隧道，也可以使用自己的公网 IP/域名、HTTPS 和路由器端口转发。不要把无保护的 `8765` 端口直接暴露到公网。
+
+详细路线：
+
+- [主设备 Hub 说明](docs/MAIN_DEVICE_HUB.md)
+- [外出访问说明](docs/REMOTE_ACCESS.md)
+- [完全自有直连方案](docs/OWNED_DIRECT_ACCESS.md)
 
 ## Lv3 自主学习
 
-这个工程现在支持可控的 Lv3 自主学习：它可以按你设定的主题联网读取网页、RSS/Atom 或 Wikipedia 页面，整理成 `data/knowledge.jsonl`，聊天时再从本地知识库检索相关内容作为参考。
+项目支持可控的 Lv3 自主学习。它可以按配置读取网页、RSS/Atom 或 Wikipedia 页面，把资料整理进本地知识库，聊天时再检索相关内容。
 
 手动学习一次：
 
@@ -209,55 +236,19 @@ python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 
 python scripts/autolearn.py --force
 ```
 
-后台守护运行：
+后台运行：
 
 ```powershell
 python scripts/autolearn.py --daemon --sleep-minutes 30
 ```
 
-注册 Windows 计划任务：
+实时聊天时也可以使用联网触发词，例如“查一下、搜索、最新、ニュース、調べて、search、latest”，或者直接发送 URL。启用方式：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/register_autolearn_task.ps1 -IntervalMinutes 720
-```
-
-学习主题和来源在：
-
-```text
-configs/learning_sources.json
-```
-
-实时网络触发词和缓存开关在：
-
-```text
-configs/network_access.json
-```
-
-地址、坐标、天气等实时数据工具在：
-
-```text
-configs/realtime_data.json
+python scripts/serve_lan.py --checkpoint runs/tiny-lover/ckpt.pt --host 0.0.0.0 --port 8765 --live-web
 ```
 
 详细说明见 [docs/AUTONOMOUS_LEARNING.md](docs/AUTONOMOUS_LEARNING.md)。
-
-如果你不想提前准备本地知识库，可以跳过 `autolearn.py`。只要聊天服务使用 `--live-web`，它会在你提到“查一下、搜索、最新、ニュース、調べて、search、latest”等触发词，或直接发送 URL 时实时联网，并把有用结果写入 `data/knowledge.jsonl`。
-
-地址、坐标、天气等实时数据会自动触发，例如：
-
-```text
-东京站地址在哪里？
-东京站天气怎么样？
-35.6811505, 139.7659765 这个位置是哪？
-```
-
-## 建议训练路线
-
-1. 用 `micro_cpu.json` 跑通流程。
-2. 用几千到几万行三语陪伴对话训练 `tiny_nvidia.json`。
-3. 观察聊天质量，补充它说不好的场景。
-4. 数据量达到几十 MB 以后再尝试 `small_nvidia.json`。
-5. 不追求它知道全世界，只训练它懂你的语气、节奏、边界和陪伴方式。
 
 ## 虚拟女友成长循环
 
@@ -267,7 +258,7 @@ configs/realtime_data.json
 configs/girlfriend_persona.json
 ```
 
-聊天会自动保存到：
+聊天日志会写入：
 
 ```text
 logs/conversations.jsonl
@@ -279,13 +270,7 @@ logs/conversations.jsonl
 python scripts/build_review_queue.py --append
 ```
 
-也可以用助手脚本：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/growth_cycle.ps1
-```
-
-你把 `data/review_queue.jsonl` 里喜欢的样本改成 `"approved": true` 后：
+审核通过后加入训练数据：
 
 ```powershell
 python scripts/promote_review.py
@@ -293,4 +278,29 @@ python scripts/prepare_data.py --raw-dir data/raw --out-dir data
 python scripts/train.py --config configs/tiny_nvidia.json --init-from runs\tiny-lover\ckpt.pt
 ```
 
+也可以使用整合脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\growth_cycle.ps1
+```
+
 详细说明见 [docs/GIRLFRIEND_GROWTH.md](docs/GIRLFRIEND_GROWTH.md)。
+
+## 建议训练路线
+
+1. 用 `micro_cpu.json` 跑通数据和训练流程。
+2. 用几千到几万行高质量三语陪伴对话训练 `tiny_nvidia.json`。
+3. 固定测试题观察她的语气、稳定性和边界。
+4. 把真实聊天整理成审核样本，批准喜欢的回复。
+5. 用 `--init-from` 持续训练，让她逐步贴近你想要的风格。
+6. 数据量达到几十 MB 后，再尝试 `small_nvidia.json`。
+
+## 更多文档
+
+- [自主学习](docs/AUTONOMOUS_LEARNING.md)
+- [虚拟女友成长循环](docs/GIRLFRIEND_GROWTH.md)
+- [主设备 Hub](docs/MAIN_DEVICE_HUB.md)
+- [外出访问](docs/REMOTE_ACCESS.md)
+- [完全自有直连](docs/OWNED_DIRECT_ACCESS.md)
+- [桌面客户端](clients/desktop/README.md)
+- [Android 客户端](clients/android/README.md)
