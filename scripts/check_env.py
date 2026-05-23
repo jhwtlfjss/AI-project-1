@@ -16,12 +16,15 @@ def main():
     print(f"CUDA available: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         print(f"CUDA runtime: {torch.version.cuda}")
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        free, total = torch.cuda.mem_get_info()
-        print(f"VRAM free/total: {free // 1024**2} MiB / {total // 1024**2} MiB")
+        print(f"GPU count: {torch.cuda.device_count()}")
+        for index in range(torch.cuda.device_count()):
+            free, total = torch.cuda.mem_get_info(index)
+            print(
+                f"GPU {index}: {torch.cuda.get_device_name(index)} "
+                f"free/total={free // 1024**2} MiB / {total // 1024**2} MiB"
+            )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,9 +1,10 @@
 param(
   [string]$Python = "python",
-  [string]$Config = "configs\tiny_3080.json",
+  [string]$Config = "configs\tiny_nvidia.json",
   [string]$Checkpoint = "runs\tiny-lover\ckpt.pt",
   [string]$OutDir = "",
   [int]$AdditionalSteps = 2000,
+  [string]$Device = "",
   [switch]$Promote,
   [switch]$Train
 )
@@ -40,5 +41,8 @@ Write-Host "Step 4: Continue training."
 $ArgsList = @("scripts\train.py", "--config", $Config, "--init-from", $Checkpoint, "--additional-steps", "$AdditionalSteps")
 if ($OutDir -ne "") {
   $ArgsList += @("--out-dir", $OutDir)
+}
+if ($Device -ne "") {
+  $ArgsList += @("--device", $Device)
 }
 & $Python @ArgsList

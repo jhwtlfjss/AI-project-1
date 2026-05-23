@@ -37,6 +37,54 @@ def get_batch(data: torch.Tensor, block_size: int, batch_size: int, device: str)
     return x.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
 
+def choose_cuda_device() -> str:
+    best_index = 0
+    best_free = -1
+    for index in range(torch.cuda.device_count()):
+        try:
+            free, _ = torch.cuda.mem_get_info(index)
+        except RuntimeError:
+            free = 0
+        if free > best_free:
+            best_index = index
+            best_free = free
+    return f"cuda:{best_index}"
+
+
+def resolve_device(requested: str) -> str:
+    requested = requested.strip().lower()
+    if requested == "auto":
+        return choose_cuda_device() if torch.cuda.is_available() else "cpu"
+    if requested.startswith("cuda"):
+        if not torch.cuda.is_available():
+            raise SystemExit("CUDA is not available. Use --device cpu or install CUDA-enabled PyTorch.")
+        if ":" in requested:
+            try:
+                index = int(requested.split(":", 1)[1])
+            except ValueError as exc:
+                raise SystemExit(f"Invalid CUDA device: {requested}") from exc
+            if index < 0 or index >= torch.cuda.device_count():
+                raise SystemExit(
+                    f"CUDA device {requested} does not exist. "
+                    f"Available device count: {torch.cuda.device_count()}."
+                )
+        return requested
+    if requested == "cpu":
+        return "cpu"
+    raise SystemExit("Device must be auto, cpu, cuda, or cuda:N.")
+
+
+def describe_device(device: str) -> str:
+    if device.startswith("cuda") and torch.cuda.is_available():
+        index = torch.device(device).index
+        if index is None:
+            index = torch.cuda.current_device()
+        name = torch.cuda.get_device_name(index)
+        free, total = torch.cuda.mem_get_info(index)
+        return f"{device} ({name}, free {free // 1024**2} MiB / total {total // 1024**2} MiB)"
+    return device
+
+
 @torch.no_grad()
 def estimate_loss(model, train_data, val_data, cfg, device, ctx):
     model.eval()
@@ -60,16 +108,26 @@ def main():
     parser.add_argument("--init-from", type=Path, help="Continue training from an existing ckpt.pt.")
     parser.add_argument("--out-dir", type=Path, help="Override train.out_dir from config.")
     parser.add_argument("--additional-steps", type=int, help="When continuing, run this many extra optimizer steps.")
+    parser.add_argument("--device", help="Override device: auto, cpu, cuda, or cuda:N.")
+    parser.add_argument("--dtype", choices=["float32", "float16", "bfloat16"], help="Override training dtype.")
+    parser.add_argument("--batch-size", type=int, help="Override batch size for this run.")
+    parser.add_argument("--grad-accum-steps", type=int, help="Override gradient accumulation steps.")
     args = parser.parse_args()
 
     full_cfg = json.loads(args.config.read_text(encoding="utf-8"))
     model_cfg = full_cfg["model"]
     train_cfg = full_cfg["train"]
+    if args.device:
+        train_cfg["device"] = args.device
+    if args.dtype:
+        train_cfg["dtype"] = args.dtype
+    if args.batch_size:
+        train_cfg["batch_size"] = args.batch_size
+    if args.grad_accum_steps:
+        train_cfg["grad_accum_steps"] = args.grad_accum_steps
 
     torch.manual_seed(train_cfg.get("seed", 1337))
-    device = train_cfg.get("device", "cuda")
-    if device == "cuda" and not torch.cuda.is_available():
-        raise SystemExit("CUDA is not available. Use configs/micro_cpu.json or install CUDA-enabled PyTorch.")
+    device = resolve_device(train_cfg.get("device", "auto"))
 
     dtype = train_cfg.get("dtype", "float16")
     ptdtype = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}[dtype]
@@ -111,7 +169,7 @@ def main():
     if train_cfg.get("compile", False):
         model = torch.compile(model)
 
-    print(f"parameters={model.parameter_count() / 1e6:.2f}M device={device} dtype={dtype}")
+    print(f"parameters={model.parameter_count() / 1e6:.2f}M device={describe_device(device)} dtype={dtype}")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=train_cfg["learning_rate"],

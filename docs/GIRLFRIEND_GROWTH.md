@@ -90,25 +90,32 @@ powershell -ExecutionPolicy Bypass -File scripts/growth_cycle.ps1 -Promote
 用同一个模型配置继续训练：
 
 ```powershell
-python scripts/train.py --config configs/tiny_3080.json --init-from runs\tiny-lover\ckpt.pt
+python scripts/train.py --config configs/tiny_nvidia.json --init-from runs\tiny-lover\ckpt.pt
 ```
 
 如果只想在旧模型上再训练一小段：
 
 ```powershell
-python scripts/train.py --config configs/tiny_3080.json --init-from runs\tiny-lover\ckpt.pt --additional-steps 2000
+python scripts/train.py --config configs/tiny_nvidia.json --init-from runs\tiny-lover\ckpt.pt --additional-steps 2000
 ```
 
 如果想保留旧 checkpoint，可以输出到新目录：
 
 ```powershell
-python scripts/train.py --config configs/tiny_3080.json --init-from runs\tiny-lover\ckpt.pt --out-dir runs\tiny-lover-v2
+python scripts/train.py --config configs/tiny_nvidia.json --init-from runs\tiny-lover\ckpt.pt --out-dir runs\tiny-lover-v2
 ```
 
 或者：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/growth_cycle.ps1 -Promote -Train -OutDir runs\tiny-lover-v2 -AdditionalSteps 2000
+```
+
+多张 NVIDIA 显卡时，可以指定训练用哪一张：
+
+```powershell
+python scripts/train.py --config configs/tiny_nvidia.json --device cuda:1 --init-from runs\tiny-lover\ckpt.pt
+powershell -ExecutionPolicy Bypass -File scripts\growth_cycle.ps1 -Promote -Train -Device cuda:1
 ```
 
 ## 6. 判断她有没有变好

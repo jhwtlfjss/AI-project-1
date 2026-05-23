@@ -2,7 +2,7 @@
 
 这是一个从零训练的私人三语恋人陪伴模型工程。它不加载任何现有大模型权重，不使用现成 tokenizer；模型从随机初始化开始学习，支持中文、日语和英语文本。
 
-你的 RTX 3080 10GB 适合先训练 `tiny_3080.json`，稳定后再尝试 `small_3080.json`。
+任意支持 CUDA 的 NVIDIA 显卡都可以用。建议先训练 `tiny_nvidia.json`，稳定后再按显存尝试 `small_nvidia.json`。
 
 ## 这个版本的边界
 
@@ -45,16 +45,29 @@ python scripts/prepare_data.py --raw-dir data/raw --out-dir data
 python scripts/train.py --config configs/micro_cpu.json
 ```
 
-确认流程正常后用 3080：
+确认流程正常后用 NVIDIA 显卡：
 
 ```powershell
-python scripts/train.py --config configs/tiny_3080.json
+python scripts/train.py --config configs/tiny_nvidia.json
+```
+
+训练脚本会自动使用可用的 CUDA 显卡；多显卡机器会优先选择空闲显存最多的一张。你也可以手动指定：
+
+```powershell
+python scripts/train.py --config configs/tiny_nvidia.json --device cuda:0
+python scripts/train.py --config configs/tiny_nvidia.json --device cuda:1
 ```
 
 如果显存够、数据够多，再尝试：
 
 ```powershell
-python scripts/train.py --config configs/small_3080.json
+python scripts/train.py --config configs/small_nvidia.json
+```
+
+如果显存较小，可以临时降低每步显存占用：
+
+```powershell
+python scripts/train.py --config configs/tiny_nvidia.json --batch-size 8 --grad-accum-steps 8
 ```
 
 ## 本地聊天
@@ -241,9 +254,9 @@ configs/realtime_data.json
 ## 建议训练路线
 
 1. 用 `micro_cpu.json` 跑通流程。
-2. 用几千到几万行三语陪伴对话训练 `tiny_3080.json`。
+2. 用几千到几万行三语陪伴对话训练 `tiny_nvidia.json`。
 3. 观察聊天质量，补充它说不好的场景。
-4. 数据量达到几十 MB 以后再尝试 `small_3080.json`。
+4. 数据量达到几十 MB 以后再尝试 `small_nvidia.json`。
 5. 不追求它知道全世界，只训练它懂你的语气、节奏、边界和陪伴方式。
 
 ## 虚拟女友成长循环
@@ -277,7 +290,7 @@ powershell -ExecutionPolicy Bypass -File scripts/growth_cycle.ps1
 ```powershell
 python scripts/promote_review.py
 python scripts/prepare_data.py --raw-dir data/raw --out-dir data
-python scripts/train.py --config configs/tiny_3080.json --init-from runs\tiny-lover\ckpt.pt
+python scripts/train.py --config configs/tiny_nvidia.json --init-from runs\tiny-lover\ckpt.pt
 ```
 
 详细说明见 [docs/GIRLFRIEND_GROWTH.md](docs/GIRLFRIEND_GROWTH.md)。

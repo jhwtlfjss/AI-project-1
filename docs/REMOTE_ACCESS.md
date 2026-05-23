@@ -3,7 +3,7 @@
 你可以做真正的客户端，不必只靠网页端。整体结构建议保持这样：
 
 ```text
-家里电脑 RTX 3080
+主设备 NVIDIA/CUDA 显卡
   - 运行模型服务端
   - 保存 memory.json
   - 保存 data/knowledge.jsonl
@@ -130,4 +130,3 @@ X-Companion-Token: 你的token
 - 本地 UI 设置
 
 模型、记忆和知识库仍保存在家里电脑上。
-
