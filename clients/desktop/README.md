@@ -34,17 +34,17 @@ Client: 这台电脑的名字
 Self-signed HTTPS
 ```
 
-电脑端只保存连接配置，不保存模型权重、记忆或知识库。核心数据仍在主设备 Hub 上。
+电脑端会保存连接配置。默认连接 `127.0.0.1` 时，它会自动启动本机 Hub，并使用本机的记忆、知识库和模型权重。
 
 ## 如果显示未连接
 
-这个 exe 是聊天客户端，不是模型本体。需要先在主设备启动 Hub：
+这个 exe 是聊天界面，但现在可以自动启动本机 Hub。打开软件后，如果左侧勾选了“打开软件时自动启动本机 Hub”，并且服务地址是 `http://127.0.0.1:8765` 或 `http://localhost:8765`，它会自动在后台启动：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -NoModel
+```text
+python scripts\serve_lan.py --host 0.0.0.0 --port 8765 --live-web
 ```
 
-`-NoModel` 只用于测试连接。客户端能连上后，会显示主设备状态，但因为没有加载模型，聊天会提示模型未加载。
+然后自动读取 `data/server_token.txt` 并连接。
 
 真正聊天需要先训练出：
 
@@ -66,6 +66,25 @@ Token: data/server_token.txt 里的内容
 ```
 
 如果没有 `ckpt.pt`，说明现在还只有软件框架和客户端，实际语言模型还没有训练出来。
+
+如果你想连接别的电脑或外出访问家里的主设备，请取消勾选“打开软件时自动启动本机 Hub”，再填写远程地址和 token。
+
+## 打包内容
+
+安装包会把下面这些内容放进同一个安装目录：
+
+```text
+AI Project 1.exe
+companion_ai/
+scripts/
+configs/
+web/
+docs/
+data/raw/
+assets/
+```
+
+如果构建安装包时本机已有 `runs\tiny-lover\ckpt.pt`，也会一起打进去。Python/PyTorch/CUDA 仍然使用系统已安装环境，不会塞进 exe 本体。
 
 ## 语言设置
 

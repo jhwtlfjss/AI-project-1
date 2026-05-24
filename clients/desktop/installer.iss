@@ -31,6 +31,15 @@ Source: "..\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}\clients"; Flags: ignoreversion
 Source: ".\README.md"; DestDir: "{app}\clients\desktop"; Flags: ignoreversion
+Source: "..\..\companion_ai\*"; DestDir: "{app}\companion_ai"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\configs\*"; DestDir: "{app}\configs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\assets\app_icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "..\..\assets\app_icon.png"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "..\..\data\raw\*"; DestDir: "{app}\data\raw"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\runs\tiny-lover\ckpt.pt"; DestDir: "{app}\runs\tiny-lover"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

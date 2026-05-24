@@ -23,9 +23,37 @@ if (!(Test-Path $Csc)) {
 
 $PackageDir = Join-Path $ProjectDir "build\installer-dotnet"
 $PayloadDir = Join-Path $PackageDir "payload"
+if (Test-Path $PayloadDir) {
+  Remove-Item -LiteralPath $PayloadDir -Recurse -Force
+}
 New-Item -ItemType Directory -Force -Path $PayloadDir | Out-Null
+
+function Copy-PayloadItem {
+  param([string]$RelativePath)
+  $Source = Join-Path $ProjectDir $RelativePath
+  if (!(Test-Path $Source)) {
+    return
+  }
+  $Destination = Join-Path $PayloadDir $RelativePath
+  $DestinationParent = Split-Path -Parent $Destination
+  if ($DestinationParent) {
+    New-Item -ItemType Directory -Force -Path $DestinationParent | Out-Null
+  }
+  Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+}
+
 Copy-Item -LiteralPath $ExePath -Destination (Join-Path $PayloadDir "AI Project 1.exe") -Force
-Copy-Item -LiteralPath (Join-Path $ProjectDir "README.md") -Destination (Join-Path $PayloadDir "README.md") -Force
+Copy-PayloadItem "README.md"
+Copy-PayloadItem "companion_ai"
+Copy-PayloadItem "scripts"
+Copy-PayloadItem "configs"
+Copy-PayloadItem "web"
+Copy-PayloadItem "docs"
+Copy-PayloadItem "assets\app_icon.ico"
+Copy-PayloadItem "assets\app_icon.png"
+Copy-PayloadItem "clients\desktop\README.md"
+Copy-PayloadItem "data\raw"
+Copy-PayloadItem "runs\tiny-lover\ckpt.pt"
 
 $ZipPath = Join-Path $PackageDir "payload.zip"
 if (Test-Path $ZipPath) {
@@ -70,16 +98,24 @@ internal static class InstallerStub
             );
             Directory.CreateDirectory(installDir);
 
-            string sourceExe = Path.Combine(tempDir, "AI Project 1.exe");
-            string targetExe = Path.Combine(installDir, "AI Project 1.exe");
-            File.Copy(sourceExe, targetExe, true);
-
-            string sourceReadme = Path.Combine(tempDir, "README.md");
-            if (File.Exists(sourceReadme))
+            foreach (string entry in Directory.GetFileSystemEntries(tempDir))
             {
-                File.Copy(sourceReadme, Path.Combine(installDir, "README.md"), true);
+                if (String.Equals(Path.GetFileName(entry), "payload.zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                string target = Path.Combine(installDir, Path.GetFileName(entry));
+                if (Directory.Exists(entry))
+                {
+                    CopyDirectory(entry, target);
+                }
+                else
+                {
+                    File.Copy(entry, target, true);
+                }
             }
 
+            string targetExe = Path.Combine(installDir, "AI Project 1.exe");
             string startMenuDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Microsoft",
@@ -144,6 +180,19 @@ internal static class InstallerStub
             new object[] { targetPath + ",0" }
         );
         shortcutType.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
+    }
+
+    private static void CopyDirectory(string sourceDir, string targetDir)
+    {
+        Directory.CreateDirectory(targetDir);
+        foreach (string file in Directory.GetFiles(sourceDir))
+        {
+            File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), true);
+        }
+        foreach (string dir in Directory.GetDirectories(sourceDir))
+        {
+            CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+        }
     }
 }
 '@ | Set-Content -LiteralPath $SourcePath -Encoding UTF8

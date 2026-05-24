@@ -117,15 +117,17 @@ python scripts/train.py --config configs/tiny_nvidia.json
 
 ## 为什么客户端显示未连接或未加载模型
 
-桌面 exe 和 Android APK 都只是客户端，不直接包含模型权重。真正的语言模型在主设备 Hub 里运行。
+桌面 exe 会尝试自动启动本机 Hub；Android APK 仍然只是客户端。真正的语言模型在主设备 Hub 里运行。
 
-最少需要两步：
+如果是在这台主设备上打开 `dist\AI Project 1.exe`，默认会自动：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -NoModel
+```text
+启动本机 Hub
+  -> 读取 data/server_token.txt
+  -> 连接 http://127.0.0.1:8765
 ```
 
-然后打开 `dist\AI Project 1.exe`，连接 `http://主设备IP:8765` 并填入 `data/server_token.txt` 里的 token。这样可以先确认客户端连接正常。
+所以正常情况下不用手动输入 `scripts\start_hub.ps1`。如果你想连接另一台主设备，就把“打开软件时自动启动本机 Hub”取消勾选，再填写远程地址和 token。
 
 真正能聊天还需要训练出：
 
@@ -140,6 +142,8 @@ powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -Checkpoint runs\
 ```
 
 如果没有这个 checkpoint，客户端可能能连接到 Hub，但会显示“未加载模型”。这不是客户端坏了，而是还没有实际模型权重。
+
+自动启动依然需要本机已经安装 Python 和 PyTorch；安装包会把 Hub 脚本、核心代码、配置和客户端放在同一个软件目录里，但不会把几 GB 的 Python/PyTorch/CUDA 运行时硬塞进 exe。
 
 ## NVIDIA 显卡训练
 
@@ -241,6 +245,10 @@ dist\AI Project 1.exe
 ```
 
 这个 exe 是原生 Windows Forms 客户端，不需要 Python 或 Tkinter。左侧设置栏可以切换中文 / 日本語 / English 三种界面语言。
+
+如果服务地址是 `http://127.0.0.1:8765` 或 `http://localhost:8765`，桌面端默认会自动启动本机 Hub，并自动读取本机 token。打包安装包会把 `scripts`、`companion_ai`、`configs`、`data/raw` 等运行 Hub 需要的项目文件一起放进安装目录。
+
+注意：客户端本身不依赖 Tkinter，但自动启动 Hub 和训练模型仍然需要本机 Python/PyTorch 环境。
 
 安装包脚本也已提供：
 

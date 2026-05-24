@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -47,6 +48,7 @@ namespace AIProject1
         private TextBox clientBox;
         private ComboBox uiLanguageBox;
         private CheckBox selfSignedBox;
+        private CheckBox autoStartHubBox;
         private CheckBox liveSearchBox;
         private CheckBox autoLookupBox;
         private ComboBox searchEngineBox;
@@ -59,6 +61,9 @@ namespace AIProject1
         private FlowLayoutPanel messageList;
         private TextBox inputBox;
         private Button sendButton;
+        private Process localHubProcess;
+        private readonly object localHubLock = new object();
+        private bool autoConnectStarted;
 
         public ChatForm()
         {
@@ -81,6 +86,35 @@ namespace AIProject1
             BuildUi();
             LoadSettings();
             AddMessage(T("systemName"), T("welcome"), false, true);
+            Shown += AutoConnectShown;
+        }
+
+        private void AutoConnectShown(object sender, EventArgs e)
+        {
+            if (autoConnectStarted)
+            {
+                return;
+            }
+            autoConnectStarted = true;
+            if (autoStartHubBox.Checked && IsLocalServer())
+            {
+                ConnectClicked(this, EventArgs.Empty);
+            }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            try
+            {
+                if (localHubProcess != null && !localHubProcess.HasExited)
+                {
+                    localHubProcess.Kill();
+                }
+            }
+            catch
+            {
+            }
+            base.OnFormClosed(e);
         }
 
         private Icon LoadAppIcon()
@@ -160,7 +194,9 @@ namespace AIProject1
                 Field(T("server"), serverBox),
                 Field(T("token"), tokenBox),
                 Field(T("client"), clientBox),
+                autoStartHubBox = Check(T("autoStartHub")),
                 selfSignedBox,
+                SidebarButton(T("startLocalHub"), StartLocalHubClicked, false),
                 SidebarButton(T("connect"), ConnectClicked, true),
                 SidebarButton(T("save"), SaveClicked, false)
             });
@@ -481,6 +517,7 @@ namespace AIProject1
             loadingSettings = true;
             serverBox.Text = "http://127.0.0.1:8765";
             clientBox.Text = Environment.MachineName;
+            autoStartHubBox.Checked = true;
             liveSearchBox.Checked = true;
             autoLookupBox.Checked = true;
             uiLanguageBox.SelectedItem = LanguageDisplayName(currentLanguage);
@@ -496,6 +533,7 @@ namespace AIProject1
                     SetText(clientBox, data, "client_id", clientBox.Text);
                     currentLanguage = NormalizeLanguage(GetString(data, "ui_language", currentLanguage));
                     uiLanguageBox.SelectedItem = LanguageDisplayName(currentLanguage);
+                    autoStartHubBox.Checked = GetBool(data, "auto_start_local_hub", true);
                     selfSignedBox.Checked = GetBool(data, "insecure", false);
                     liveSearchBox.Checked = GetBool(data, "search_enabled", true);
                     autoLookupBox.Checked = GetBool(data, "search_auto_lookup", true);
@@ -519,6 +557,7 @@ namespace AIProject1
             data["token"] = tokenBox.Text.Trim();
             data["client_id"] = clientBox.Text.Trim();
             data["ui_language"] = currentLanguage;
+            data["auto_start_local_hub"] = autoStartHubBox.Checked;
             data["insecure"] = selfSignedBox.Checked;
             data["search_enabled"] = liveSearchBox.Checked;
             data["search_auto_lookup"] = autoLookupBox.Checked;
@@ -533,15 +572,46 @@ namespace AIProject1
             statusLabel.Text = T("settingsSaved");
         }
 
-        private void ConnectClicked(object sender, EventArgs e)
+        private void StartLocalHubClicked(object sender, EventArgs e)
         {
             SaveSettings();
-            statusLabel.Text = T("connecting");
+            statusLabel.Text = T("startingLocalHub");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
                 {
-                    var status = Request("GET", "/api/status", null);
+                    StartLocalHub();
+                    BeginInvoke(new Action(delegate
+                    {
+                        statusLabel.Text = T("localHubStarted");
+                        AddMessage(T("systemName"), T("localHubStartedMessage"), false, true);
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        statusLabel.Text = T("localHubFailed");
+                        AddMessage(T("systemName"), T("localHubFailedPrefix") + ex.Message, false, true);
+                    }));
+                }
+            });
+        }
+
+        private void ConnectClicked(object sender, EventArgs e)
+        {
+            SaveSettings();
+            bool shouldStartLocalHub = autoStartHubBox.Checked && IsLocalServer();
+            statusLabel.Text = shouldStartLocalHub ? T("startingLocalHub") : T("connecting");
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    if (shouldStartLocalHub)
+                    {
+                        StartLocalHub();
+                    }
+                    var status = RequestStatusWithRetry(shouldStartLocalHub ? 24 : 1);
                     BeginInvoke(new Action(delegate { ShowStatus(status); }));
                 }
                 catch (Exception ex)
@@ -553,6 +623,24 @@ namespace AIProject1
                     }));
                 }
             });
+        }
+
+        private Dictionary<string, object> RequestStatusWithRetry(int attempts)
+        {
+            Exception last = null;
+            for (int i = 0; i < Math.Max(1, attempts); i++)
+            {
+                try
+                {
+                    return Request("GET", "/api/status", null);
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                    Thread.Sleep(500);
+                }
+            }
+            throw last ?? new InvalidOperationException(T("connectionFailed"));
         }
 
         private void SendClicked(object sender, EventArgs e)
@@ -678,6 +766,134 @@ namespace AIProject1
             data["search_engine"] = SelectedEngine();
             data["custom_search_url"] = customSearchBox.Text.Trim();
             return data;
+        }
+
+        private void StartLocalHub()
+        {
+            lock (localHubLock)
+            {
+                if (localHubProcess != null && !localHubProcess.HasExited)
+                {
+                    LoadLocalTokenIfAvailable(FindAppRoot(), true);
+                    return;
+                }
+
+                string root = FindAppRoot();
+                string serveScript = Path.Combine(root, "scripts", "serve_lan.py");
+                if (!File.Exists(serveScript))
+                {
+                    throw new FileNotFoundException(T("localHubFilesMissing"), serveScript);
+                }
+
+                string python = FindPythonExecutable();
+                int port = LocalServerPort();
+                string args = Quote(serveScript) + " --host 0.0.0.0 --port " + port + " --live-web";
+                string checkpoint = Path.Combine(root, "runs", "tiny-lover", "ckpt.pt");
+                if (File.Exists(checkpoint))
+                {
+                    args += " --checkpoint " + Quote(checkpoint);
+                }
+
+                var startInfo = new ProcessStartInfo();
+                startInfo.FileName = python;
+                startInfo.Arguments = args;
+                startInfo.WorkingDirectory = root;
+                startInfo.UseShellExecute = false;
+                startInfo.CreateNoWindow = true;
+                startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                localHubProcess = Process.Start(startInfo);
+                if (localHubProcess == null)
+                {
+                    throw new InvalidOperationException(T("localHubProcessMissing"));
+                }
+
+                LoadLocalTokenIfAvailable(root, false);
+            }
+        }
+
+        private void LoadLocalTokenIfAvailable(string root, bool quick)
+        {
+            string tokenPath = Path.Combine(root, "data", "server_token.txt");
+            int attempts = quick ? 1 : 30;
+            for (int i = 0; i < attempts; i++)
+            {
+                if (File.Exists(tokenPath))
+                {
+                    string token = File.ReadAllText(tokenPath, Encoding.UTF8).Trim();
+                    if (!String.IsNullOrEmpty(token))
+                    {
+                        tokenBox.Text = token;
+                        serverBox.Text = "http://127.0.0.1:" + LocalServerPort();
+                        return;
+                    }
+                }
+                Thread.Sleep(300);
+            }
+        }
+
+        private string FindAppRoot()
+        {
+            string dir = AppDomain.CurrentDomain.BaseDirectory;
+            for (int i = 0; i < 5 && !String.IsNullOrEmpty(dir); i++)
+            {
+                if (File.Exists(Path.Combine(dir, "scripts", "serve_lan.py")))
+                {
+                    return dir;
+                }
+                DirectoryInfo parent = Directory.GetParent(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                dir = parent == null ? "" : parent.FullName;
+            }
+            return AppDomain.CurrentDomain.BaseDirectory;
+        }
+
+        private string FindPythonExecutable()
+        {
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string[] candidates = new string[]
+            {
+                Path.Combine(local, "Programs", "Python", "Python312", "python.exe"),
+                Path.Combine(local, "Programs", "Python", "Python313", "python.exe"),
+                Path.Combine(local, "Programs", "Python", "Python311", "python.exe"),
+                "python"
+            };
+            foreach (string candidate in candidates)
+            {
+                if (candidate == "python" || File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+            return "python";
+        }
+
+        private bool IsLocalServer()
+        {
+            string value = serverBox.Text.Trim().ToLowerInvariant();
+            return value.StartsWith("http://127.0.0.1")
+                || value.StartsWith("http://localhost")
+                || value.StartsWith("https://127.0.0.1")
+                || value.StartsWith("https://localhost");
+        }
+
+        private int LocalServerPort()
+        {
+            try
+            {
+                Uri uri = new Uri(serverBox.Text.Trim());
+                if (uri.Port > 0)
+                {
+                    return uri.Port;
+                }
+            }
+            catch
+            {
+            }
+            return 8765;
+        }
+
+        private static string Quote(string value)
+        {
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
 
         private void ShowStatus(Dictionary<string, object> status)
@@ -893,6 +1109,8 @@ namespace AIProject1
                         {"token", "访问令牌"},
                         {"client", "设备名称"},
                         {"selfSigned", "信任自签 HTTPS"},
+                        {"autoStartHub", "打开软件时自动启动本机 Hub"},
+                        {"startLocalHub", "启动本机 Hub"},
                         {"connect", "连接主设备"},
                         {"save", "保存设置"},
                         {"searchTitle", "联网搜索"},
@@ -913,12 +1131,19 @@ namespace AIProject1
                         {"systemName", "系统"},
                         {"meName", "我"},
                         {"assistantName", "她"},
-                        {"welcome", "先启动主设备 Hub，再连接这里。没有训练出 ckpt.pt 时可以连接，但模型会显示未加载。"},
+                        {"welcome", "我会尝试自动启动本机 Hub 并连接。没有训练出 ckpt.pt 时可以连接，但模型会显示未加载。"},
                         {"languageChanged", "界面语言已切换。"},
                         {"settingsSaved", "状态：设置已保存"},
                         {"connecting", "状态：正在连接..."},
                         {"connectionFailed", "状态：连接失败"},
                         {"connectionFailedPrefix", "连接失败：请先在主设备运行 scripts\\start_hub.ps1。详细原因："},
+                        {"startingLocalHub", "状态：正在启动本机 Hub..."},
+                        {"localHubStarted", "状态：本机 Hub 已启动"},
+                        {"localHubFailed", "状态：本机 Hub 启动失败"},
+                        {"localHubStartedMessage", "本机 Hub 已在后台启动，我会连接到 127.0.0.1。"},
+                        {"localHubFailedPrefix", "本机 Hub 启动失败："},
+                        {"localHubFilesMissing", "找不到 Hub 脚本。请确认安装包包含 scripts 和 companion_ai 目录。"},
+                        {"localHubProcessMissing", "Hub 进程没有启动成功。"},
                         {"thinkingButton", "思考中"},
                         {"thinking", "状态：思考中..."},
                         {"connected", "状态：已连接"},
@@ -951,6 +1176,8 @@ namespace AIProject1
                         {"token", "アクセストークン"},
                         {"client", "端末名"},
                         {"selfSigned", "自己署名 HTTPS を信頼"},
+                        {"autoStartHub", "起動時にローカル Hub を自動起動"},
+                        {"startLocalHub", "ローカル Hub を起動"},
                         {"connect", "主端末に接続"},
                         {"save", "設定を保存"},
                         {"searchTitle", "Web 検索"},
@@ -971,12 +1198,19 @@ namespace AIProject1
                         {"systemName", "システム"},
                         {"meName", "私"},
                         {"assistantName", "彼女"},
-                        {"welcome", "先に主端末 Hub を起動してから接続してください。ckpt.pt がまだ無い場合、接続はできますがモデル未読み込みになります。"},
+                        {"welcome", "ローカル Hub を自動起動して接続します。ckpt.pt がまだ無い場合、接続はできますがモデル未読み込みになります。"},
                         {"languageChanged", "表示言語を切り替えました。"},
                         {"settingsSaved", "状態：設定を保存しました"},
                         {"connecting", "状態：接続中..."},
                         {"connectionFailed", "状態：接続失敗"},
                         {"connectionFailedPrefix", "接続失敗：主端末で scripts\\start_hub.ps1 を実行してください。詳細："},
+                        {"startingLocalHub", "状態：ローカル Hub 起動中..."},
+                        {"localHubStarted", "状態：ローカル Hub 起動済み"},
+                        {"localHubFailed", "状態：ローカル Hub 起動失敗"},
+                        {"localHubStartedMessage", "ローカル Hub をバックグラウンドで起動しました。127.0.0.1 に接続します。"},
+                        {"localHubFailedPrefix", "ローカル Hub 起動失敗："},
+                        {"localHubFilesMissing", "Hub スクリプトが見つかりません。インストールに scripts と companion_ai が含まれているか確認してください。"},
+                        {"localHubProcessMissing", "Hub プロセスを起動できませんでした。"},
                         {"thinkingButton", "考え中"},
                         {"thinking", "状態：考え中..."},
                         {"connected", "状態：接続済み"},
@@ -1009,6 +1243,8 @@ namespace AIProject1
                         {"token", "Access token"},
                         {"client", "Device name"},
                         {"selfSigned", "Trust self-signed HTTPS"},
+                        {"autoStartHub", "Auto-start local Hub when app opens"},
+                        {"startLocalHub", "Start local Hub"},
                         {"connect", "Connect to main device"},
                         {"save", "Save settings"},
                         {"searchTitle", "Web Search"},
@@ -1029,12 +1265,19 @@ namespace AIProject1
                         {"systemName", "System"},
                         {"meName", "Me"},
                         {"assistantName", "Her"},
-                        {"welcome", "Start the main-device Hub first, then connect here. If ckpt.pt has not been trained yet, the app can connect but the model will show as not loaded."},
+                        {"welcome", "I will try to auto-start the local Hub and connect here. If ckpt.pt has not been trained yet, the app can connect but the model will show as not loaded."},
                         {"languageChanged", "Interface language changed."},
                         {"settingsSaved", "Status: settings saved"},
                         {"connecting", "Status: connecting..."},
                         {"connectionFailed", "Status: connection failed"},
                         {"connectionFailedPrefix", "Connection failed: start scripts\\start_hub.ps1 on the main device first. Details: "},
+                        {"startingLocalHub", "Status: starting local Hub..."},
+                        {"localHubStarted", "Status: local Hub started"},
+                        {"localHubFailed", "Status: local Hub failed"},
+                        {"localHubStartedMessage", "The local Hub has started in the background. I will connect to 127.0.0.1."},
+                        {"localHubFailedPrefix", "Local Hub failed: "},
+                        {"localHubFilesMissing", "Hub scripts were not found. Make sure the install includes scripts and companion_ai."},
+                        {"localHubProcessMissing", "The Hub process did not start."},
                         {"thinkingButton", "Thinking"},
                         {"thinking", "Status: thinking..."},
                         {"connected", "Status: connected"},
