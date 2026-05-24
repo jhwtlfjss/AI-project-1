@@ -39,10 +39,13 @@ namespace AIProject1
         private readonly string configDir;
         private readonly string configPath;
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
+        private string currentLanguage = "zh";
+        private bool loadingSettings;
 
         private TextBox serverBox;
         private TextBox tokenBox;
         private TextBox clientBox;
+        private ComboBox uiLanguageBox;
         private CheckBox selfSignedBox;
         private CheckBox liveSearchBox;
         private CheckBox autoLookupBox;
@@ -73,10 +76,11 @@ namespace AIProject1
             Font = Theme.UiFont;
             Icon = LoadAppIcon();
             DoubleBuffered = true;
+            currentLanguage = LoadLanguagePreference();
 
             BuildUi();
             LoadSettings();
-            AddMessage("系统", "连接主设备后就可以开始聊天。", false, true);
+            AddMessage(T("systemName"), T("welcome"), false, true);
         }
 
         private Icon LoadAppIcon()
@@ -92,6 +96,23 @@ namespace AIProject1
                 return new Icon(iconPath);
             }
             return Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        }
+
+        private string LoadLanguagePreference()
+        {
+            if (!File.Exists(configPath))
+            {
+                return "zh";
+            }
+            try
+            {
+                var data = json.Deserialize<Dictionary<string, object>>(File.ReadAllText(configPath, Encoding.UTF8));
+                return NormalizeLanguage(GetString(data, "ui_language", "zh"));
+            }
+            catch
+            {
+                return "zh";
+            }
         }
 
         private void BuildUi()
@@ -124,40 +145,49 @@ namespace AIProject1
             tokenBox = new TextBox();
             tokenBox.UseSystemPasswordChar = true;
             clientBox = new TextBox();
-            selfSignedBox = Check("信任自签 HTTPS");
-            AddCard(sideFlow, "连接设置", new Control[]
+            uiLanguageBox = new ComboBox();
+            uiLanguageBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiLanguageBox.Items.AddRange(new object[] { "中文", "日本語", "English" });
+            uiLanguageBox.SelectedIndexChanged += LanguageChanged;
+            AddCard(sideFlow, T("languageTitle"), new Control[]
             {
-                Field("服务地址", serverBox),
-                Field("访问令牌", tokenBox),
-                Field("设备名称", clientBox),
-                selfSignedBox,
-                SidebarButton("连接主设备", ConnectClicked, true),
-                SidebarButton("保存设置", SaveClicked, false)
+                Field(T("uiLanguage"), uiLanguageBox)
             });
 
-            liveSearchBox = Check("允许联网搜索");
-            autoLookupBox = Check("按触发词自动搜索");
+            selfSignedBox = Check(T("selfSigned"));
+            AddCard(sideFlow, T("connectionTitle"), new Control[]
+            {
+                Field(T("server"), serverBox),
+                Field(T("token"), tokenBox),
+                Field(T("client"), clientBox),
+                selfSignedBox,
+                SidebarButton(T("connect"), ConnectClicked, true),
+                SidebarButton(T("save"), SaveClicked, false)
+            });
+
+            liveSearchBox = Check(T("liveSearch"));
+            autoLookupBox = Check(T("autoLookup"));
             searchEngineBox = new ComboBox();
             searchEngineBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            searchEngineBox.Items.AddRange(new object[] { "Google", "Baidu", "自定义" });
+            searchEngineBox.Items.AddRange(new object[] { "Google", "Baidu", T("customEngine") });
             searchEngineBox.SelectedIndexChanged += delegate { UpdateCustomSearchState(); };
             customSearchBox = new TextBox();
-            AddCard(sideFlow, "联网搜索", new Control[]
+            AddCard(sideFlow, T("searchTitle"), new Control[]
             {
                 liveSearchBox,
                 autoLookupBox,
-                Field("搜索引擎", searchEngineBox),
-                Field("自定义搜索页", customSearchBox)
+                Field(T("searchEngine"), searchEngineBox),
+                Field(T("customSearch"), customSearchBox)
             });
 
-            statusLabel = SideStatus("状态：未连接");
-            hubLabel = SideStatus("主设备：-");
-            memoryLabel = SideStatus("记忆：-");
-            knowledgeLabel = SideStatus("知识库：-");
-            searchLabel = SideStatus("搜索：-");
-            AddCard(sideFlow, "会话", new Control[]
+            statusLabel = SideStatus(T("statusNotConnected"));
+            hubLabel = SideStatus(T("hubEmpty"));
+            memoryLabel = SideStatus(T("memoryEmpty"));
+            knowledgeLabel = SideStatus(T("knowledgeEmpty"));
+            searchLabel = SideStatus(T("searchEmpty"));
+            AddCard(sideFlow, T("sessionTitle"), new Control[]
             {
-                SidebarButton("清空屏幕", ClearClicked, false),
+                SidebarButton(T("clear"), ClearClicked, false),
                 statusLabel,
                 hubLabel,
                 memoryLabel,
@@ -204,7 +234,7 @@ namespace AIProject1
             panel.Controls.Add(title);
 
             var sub = new Label();
-            sub.Text = "私人陪伴中枢";
+            sub.Text = T("brandSubtitle");
             sub.ForeColor = Theme.SidebarMuted;
             sub.BackColor = Theme.Sidebar;
             sub.Font = Theme.UiFont;
@@ -237,7 +267,7 @@ namespace AIProject1
             header.Controls.Add(title);
 
             var subtitle = new Label();
-            subtitle.Text = "三语陪伴模型 · 中文 / 日语 / English";
+            subtitle.Text = T("headerSubtitle");
             subtitle.Font = Theme.UiFont;
             subtitle.ForeColor = Theme.Muted;
             subtitle.BackColor = Theme.Surface;
@@ -245,7 +275,7 @@ namespace AIProject1
             subtitle.Size = new Size(420, 24);
             header.Controls.Add(subtitle);
 
-            var reconnect = HeaderButton("重新连接");
+            var reconnect = HeaderButton(T("reconnect"));
             reconnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             reconnect.Location = new Point(header.Width - 132, 20);
             reconnect.Click += ConnectClicked;
@@ -315,7 +345,7 @@ namespace AIProject1
             inputShell.Controls.Add(inputBox);
             table.Controls.Add(inputShell, 0, 0);
 
-            sendButton = HeaderButton("发送");
+            sendButton = HeaderButton(T("send"));
             sendButton.Dock = DockStyle.Fill;
             sendButton.BackColor = Theme.Accent;
             sendButton.ForeColor = Color.White;
@@ -448,10 +478,12 @@ namespace AIProject1
 
         private void LoadSettings()
         {
+            loadingSettings = true;
             serverBox.Text = "http://127.0.0.1:8765";
             clientBox.Text = Environment.MachineName;
             liveSearchBox.Checked = true;
             autoLookupBox.Checked = true;
+            uiLanguageBox.SelectedItem = LanguageDisplayName(currentLanguage);
             searchEngineBox.SelectedItem = "Google";
 
             if (File.Exists(configPath))
@@ -462,6 +494,8 @@ namespace AIProject1
                     SetText(serverBox, data, "server", serverBox.Text);
                     SetText(tokenBox, data, "token", "");
                     SetText(clientBox, data, "client_id", clientBox.Text);
+                    currentLanguage = NormalizeLanguage(GetString(data, "ui_language", currentLanguage));
+                    uiLanguageBox.SelectedItem = LanguageDisplayName(currentLanguage);
                     selfSignedBox.Checked = GetBool(data, "insecure", false);
                     liveSearchBox.Checked = GetBool(data, "search_enabled", true);
                     autoLookupBox.Checked = GetBool(data, "search_auto_lookup", true);
@@ -473,6 +507,7 @@ namespace AIProject1
                 {
                 }
             }
+            loadingSettings = false;
             UpdateCustomSearchState();
         }
 
@@ -483,6 +518,7 @@ namespace AIProject1
             data["server"] = serverBox.Text.Trim();
             data["token"] = tokenBox.Text.Trim();
             data["client_id"] = clientBox.Text.Trim();
+            data["ui_language"] = currentLanguage;
             data["insecure"] = selfSignedBox.Checked;
             data["search_enabled"] = liveSearchBox.Checked;
             data["search_auto_lookup"] = autoLookupBox.Checked;
@@ -494,13 +530,13 @@ namespace AIProject1
         private void SaveClicked(object sender, EventArgs e)
         {
             SaveSettings();
-            statusLabel.Text = "状态：设置已保存";
+            statusLabel.Text = T("settingsSaved");
         }
 
         private void ConnectClicked(object sender, EventArgs e)
         {
             SaveSettings();
-            statusLabel.Text = "状态：正在连接...";
+            statusLabel.Text = T("connecting");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -512,8 +548,8 @@ namespace AIProject1
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        statusLabel.Text = "状态：连接失败";
-                        AddMessage("系统", "连接失败：" + ex.Message, false, true);
+                        statusLabel.Text = T("connectionFailed");
+                        AddMessage(T("systemName"), T("connectionFailedPrefix") + ex.Message, false, true);
                     }));
                 }
             });
@@ -542,10 +578,10 @@ namespace AIProject1
             }
             SaveSettings();
             inputBox.Clear();
-            AddMessage("我", message, true, false);
+            AddMessage(T("meName"), message, true, false);
             sendButton.Enabled = false;
-            sendButton.Text = "思考中";
-            statusLabel.Text = "状态：思考中...";
+            sendButton.Text = T("thinkingButton");
+            statusLabel.Text = T("thinking");
 
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -558,9 +594,9 @@ namespace AIProject1
                     string reply = GetString(response, "reply", "");
                     BeginInvoke(new Action(delegate
                     {
-                        AddMessage("她", reply, false, false);
-                        statusLabel.Text = "状态：已连接";
-                        sendButton.Text = "发送";
+                        AddMessage(T("assistantName"), reply, false, false);
+                        statusLabel.Text = T("connected");
+                        sendButton.Text = T("send");
                         sendButton.Enabled = true;
                     }));
                 }
@@ -568,9 +604,9 @@ namespace AIProject1
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        AddMessage("系统", "发送失败：" + ex.Message, false, true);
-                        statusLabel.Text = "状态：发送失败";
-                        sendButton.Text = "发送";
+                        AddMessage(T("systemName"), T("sendFailedPrefix") + ex.Message, false, true);
+                        statusLabel.Text = T("sendFailed");
+                        sendButton.Text = T("send");
                         sendButton.Enabled = true;
                     }));
                 }
@@ -582,7 +618,7 @@ namespace AIProject1
             string baseUrl = serverBox.Text.Trim().TrimEnd('/');
             if (!baseUrl.StartsWith("http://") && !baseUrl.StartsWith("https://"))
             {
-                throw new InvalidOperationException("服务地址必须以 http:// 或 https:// 开头");
+                throw new InvalidOperationException(T("serverUrlError"));
             }
 
             if (selfSignedBox.Checked)
@@ -646,19 +682,18 @@ namespace AIProject1
 
         private void ShowStatus(Dictionary<string, object> status)
         {
-            statusLabel.Text = "状态：" + (GetBool(status, "ready", false) ? "模型已就绪" : "未加载模型")
+            statusLabel.Text = T("statusPrefix") + (GetBool(status, "ready", false) ? T("modelReady") : T("modelMissing"))
                 + " · " + GetString(status, "device", "-");
-            hubLabel.Text = "主设备：-";
+            hubLabel.Text = T("hubEmpty");
             if (status.ContainsKey("hub") && status["hub"] is Dictionary<string, object>)
             {
                 var hub = (Dictionary<string, object>)status["hub"];
-                hubLabel.Text = "主设备：" + GetString(hub, "hub_name", "-");
+                hubLabel.Text = T("hubPrefix") + GetString(hub, "hub_name", "-");
             }
-            memoryLabel.Text = "记忆：" + GetString(status, "memory_facts", "0") + " 条事实，"
-                + GetString(status, "memory_turns", "0") + " 轮对话";
-            knowledgeLabel.Text = "知识库：" + GetString(status, "knowledge_entries", "0") + " 条记录";
-            searchLabel.Text = GetBool(status, "live_web", false) ? "搜索：主设备已开启" : "搜索：主设备未开启";
-            AddMessage("系统", "已连接到主设备。", false, true);
+            memoryLabel.Text = String.Format(T("memoryStatus"), GetString(status, "memory_facts", "0"), GetString(status, "memory_turns", "0"));
+            knowledgeLabel.Text = String.Format(T("knowledgeStatus"), GetString(status, "knowledge_entries", "0"));
+            searchLabel.Text = GetBool(status, "live_web", false) ? T("searchHubOn") : T("searchHubOff");
+            AddMessage(T("systemName"), T("connectedMessage"), false, true);
         }
 
         private void AddMessage(string speaker, string text, bool mine, bool system)
@@ -733,7 +768,21 @@ namespace AIProject1
         private void ClearClicked(object sender, EventArgs e)
         {
             messageList.Controls.Clear();
-            AddMessage("系统", "屏幕已清空。", false, true);
+            AddMessage(T("systemName"), T("screenCleared"), false, true);
+        }
+
+        private void LanguageChanged(object sender, EventArgs e)
+        {
+            if (loadingSettings)
+            {
+                return;
+            }
+            currentLanguage = SelectedLanguage();
+            SaveSettings();
+            Controls.Clear();
+            BuildUi();
+            LoadSettings();
+            AddMessage(T("systemName"), T("languageChanged"), false, true);
         }
 
         private void UpdateCustomSearchState()
@@ -752,14 +801,54 @@ namespace AIProject1
             {
                 return "baidu";
             }
-            if (text == "自定义")
+            if (text == "自定义" || text == "カスタム" || text == "Custom" || text == T("customEngine"))
             {
                 return "custom";
             }
             return "google";
         }
 
-        private static string EngineDisplayName(string engine)
+        private string SelectedLanguage()
+        {
+            if (uiLanguageBox == null || uiLanguageBox.SelectedItem == null)
+            {
+                return currentLanguage;
+            }
+            return NormalizeLanguage(uiLanguageBox.SelectedItem.ToString());
+        }
+
+        private static string NormalizeLanguage(string value)
+        {
+            if (String.IsNullOrEmpty(value))
+            {
+                return "zh";
+            }
+            string lowered = value.Trim().ToLowerInvariant();
+            if (lowered == "ja" || lowered == "jp" || lowered == "日本語")
+            {
+                return "ja";
+            }
+            if (lowered == "en" || lowered == "english")
+            {
+                return "en";
+            }
+            return "zh";
+        }
+
+        private static string LanguageDisplayName(string code)
+        {
+            if (code == "ja")
+            {
+                return "日本語";
+            }
+            if (code == "en")
+            {
+                return "English";
+            }
+            return "中文";
+        }
+
+        private string EngineDisplayName(string engine)
         {
             if (engine == "baidu")
             {
@@ -767,10 +856,201 @@ namespace AIProject1
             }
             if (engine == "custom")
             {
-                return "自定义";
+                return T("customEngine");
             }
             return "Google";
         }
+
+        private string T(string key)
+        {
+            Dictionary<string, string> map;
+            if (!Texts.TryGetValue(currentLanguage, out map))
+            {
+                map = Texts["zh"];
+            }
+            string value;
+            if (map.TryGetValue(key, out value))
+            {
+                return value;
+            }
+            return Texts["zh"].ContainsKey(key) ? Texts["zh"][key] : key;
+        }
+
+        private static readonly Dictionary<string, Dictionary<string, string>> Texts =
+            new Dictionary<string, Dictionary<string, string>>
+            {
+                {
+                    "zh",
+                    new Dictionary<string, string>
+                    {
+                        {"brandSubtitle", "私人陪伴中枢"},
+                        {"headerSubtitle", "三语陪伴模型 · 中文 / 日本語 / English"},
+                        {"languageTitle", "语言"},
+                        {"uiLanguage", "界面语言"},
+                        {"connectionTitle", "连接设置"},
+                        {"server", "服务地址"},
+                        {"token", "访问令牌"},
+                        {"client", "设备名称"},
+                        {"selfSigned", "信任自签 HTTPS"},
+                        {"connect", "连接主设备"},
+                        {"save", "保存设置"},
+                        {"searchTitle", "联网搜索"},
+                        {"liveSearch", "允许联网搜索"},
+                        {"autoLookup", "按触发词自动搜索"},
+                        {"searchEngine", "搜索引擎"},
+                        {"customSearch", "自定义搜索页"},
+                        {"customEngine", "自定义"},
+                        {"sessionTitle", "会话"},
+                        {"clear", "清空屏幕"},
+                        {"statusNotConnected", "状态：未连接"},
+                        {"hubEmpty", "主设备：-"},
+                        {"memoryEmpty", "记忆：-"},
+                        {"knowledgeEmpty", "知识库：-"},
+                        {"searchEmpty", "搜索：-"},
+                        {"reconnect", "重新连接"},
+                        {"send", "发送"},
+                        {"systemName", "系统"},
+                        {"meName", "我"},
+                        {"assistantName", "她"},
+                        {"welcome", "连接主设备后就可以开始聊天。"},
+                        {"languageChanged", "界面语言已切换。"},
+                        {"settingsSaved", "状态：设置已保存"},
+                        {"connecting", "状态：正在连接..."},
+                        {"connectionFailed", "状态：连接失败"},
+                        {"connectionFailedPrefix", "连接失败："},
+                        {"thinkingButton", "思考中"},
+                        {"thinking", "状态：思考中..."},
+                        {"connected", "状态：已连接"},
+                        {"sendFailed", "状态：发送失败"},
+                        {"sendFailedPrefix", "发送失败："},
+                        {"serverUrlError", "服务地址必须以 http:// 或 https:// 开头"},
+                        {"statusPrefix", "状态："},
+                        {"modelReady", "模型已就绪"},
+                        {"modelMissing", "未加载模型"},
+                        {"hubPrefix", "主设备："},
+                        {"memoryStatus", "记忆：{0} 条事实，{1} 轮对话"},
+                        {"knowledgeStatus", "知识库：{0} 条记录"},
+                        {"searchHubOn", "搜索：主设备已开启"},
+                        {"searchHubOff", "搜索：主设备未开启"},
+                        {"connectedMessage", "已连接到主设备。"},
+                        {"screenCleared", "屏幕已清空。"}
+                    }
+                },
+                {
+                    "ja",
+                    new Dictionary<string, string>
+                    {
+                        {"brandSubtitle", "プライベート伴侶ハブ"},
+                        {"headerSubtitle", "三言語コンパニオン · 中文 / 日本語 / English"},
+                        {"languageTitle", "言語"},
+                        {"uiLanguage", "表示言語"},
+                        {"connectionTitle", "接続設定"},
+                        {"server", "サーバー"},
+                        {"token", "アクセストークン"},
+                        {"client", "端末名"},
+                        {"selfSigned", "自己署名 HTTPS を信頼"},
+                        {"connect", "主端末に接続"},
+                        {"save", "設定を保存"},
+                        {"searchTitle", "Web 検索"},
+                        {"liveSearch", "Web 検索を許可"},
+                        {"autoLookup", "トリガーで自動検索"},
+                        {"searchEngine", "検索エンジン"},
+                        {"customSearch", "カスタム検索ページ"},
+                        {"customEngine", "カスタム"},
+                        {"sessionTitle", "会話"},
+                        {"clear", "画面をクリア"},
+                        {"statusNotConnected", "状態：未接続"},
+                        {"hubEmpty", "主端末：-"},
+                        {"memoryEmpty", "記憶：-"},
+                        {"knowledgeEmpty", "知識庫：-"},
+                        {"searchEmpty", "検索：-"},
+                        {"reconnect", "再接続"},
+                        {"send", "送信"},
+                        {"systemName", "システム"},
+                        {"meName", "私"},
+                        {"assistantName", "彼女"},
+                        {"welcome", "主端末に接続すると会話を始められます。"},
+                        {"languageChanged", "表示言語を切り替えました。"},
+                        {"settingsSaved", "状態：設定を保存しました"},
+                        {"connecting", "状態：接続中..."},
+                        {"connectionFailed", "状態：接続失敗"},
+                        {"connectionFailedPrefix", "接続失敗："},
+                        {"thinkingButton", "考え中"},
+                        {"thinking", "状態：考え中..."},
+                        {"connected", "状態：接続済み"},
+                        {"sendFailed", "状態：送信失敗"},
+                        {"sendFailedPrefix", "送信失敗："},
+                        {"serverUrlError", "サーバーは http:// または https:// で始めてください"},
+                        {"statusPrefix", "状態："},
+                        {"modelReady", "モデル準備完了"},
+                        {"modelMissing", "モデル未読み込み"},
+                        {"hubPrefix", "主端末："},
+                        {"memoryStatus", "記憶：事実 {0} 件、会話 {1} 往復"},
+                        {"knowledgeStatus", "知識庫：{0} 件"},
+                        {"searchHubOn", "検索：主端末で有効"},
+                        {"searchHubOff", "検索：主端末で無効"},
+                        {"connectedMessage", "主端末に接続しました。"},
+                        {"screenCleared", "画面をクリアしました。"}
+                    }
+                },
+                {
+                    "en",
+                    new Dictionary<string, string>
+                    {
+                        {"brandSubtitle", "private companion hub"},
+                        {"headerSubtitle", "Trilingual companion · 中文 / 日本語 / English"},
+                        {"languageTitle", "Language"},
+                        {"uiLanguage", "Interface language"},
+                        {"connectionTitle", "Connection"},
+                        {"server", "Server"},
+                        {"token", "Access token"},
+                        {"client", "Device name"},
+                        {"selfSigned", "Trust self-signed HTTPS"},
+                        {"connect", "Connect to main device"},
+                        {"save", "Save settings"},
+                        {"searchTitle", "Web Search"},
+                        {"liveSearch", "Allow web search"},
+                        {"autoLookup", "Auto lookup triggers"},
+                        {"searchEngine", "Search engine"},
+                        {"customSearch", "Custom search page"},
+                        {"customEngine", "Custom"},
+                        {"sessionTitle", "Session"},
+                        {"clear", "Clear screen"},
+                        {"statusNotConnected", "Status: not connected"},
+                        {"hubEmpty", "Main device: -"},
+                        {"memoryEmpty", "Memory: -"},
+                        {"knowledgeEmpty", "Knowledge: -"},
+                        {"searchEmpty", "Search: -"},
+                        {"reconnect", "Reconnect"},
+                        {"send", "Send"},
+                        {"systemName", "System"},
+                        {"meName", "Me"},
+                        {"assistantName", "Her"},
+                        {"welcome", "Connect to the main device to start chatting."},
+                        {"languageChanged", "Interface language changed."},
+                        {"settingsSaved", "Status: settings saved"},
+                        {"connecting", "Status: connecting..."},
+                        {"connectionFailed", "Status: connection failed"},
+                        {"connectionFailedPrefix", "Connection failed: "},
+                        {"thinkingButton", "Thinking"},
+                        {"thinking", "Status: thinking..."},
+                        {"connected", "Status: connected"},
+                        {"sendFailed", "Status: send failed"},
+                        {"sendFailedPrefix", "Send failed: "},
+                        {"serverUrlError", "Server must start with http:// or https://"},
+                        {"statusPrefix", "Status: "},
+                        {"modelReady", "model ready"},
+                        {"modelMissing", "model not loaded"},
+                        {"hubPrefix", "Main device: "},
+                        {"memoryStatus", "Memory: {0} facts, {1} turns"},
+                        {"knowledgeStatus", "Knowledge: {0} notes"},
+                        {"searchHubOn", "Search: enabled on main device"},
+                        {"searchHubOff", "Search: disabled on main device"},
+                        {"connectedMessage", "Connected to the main device."},
+                        {"screenCleared", "Screen cleared."}
+                    }
+                }
+            };
 
         private static void SetText(TextBox box, Dictionary<string, object> data, string key, string fallback)
         {

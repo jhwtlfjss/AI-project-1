@@ -1,6 +1,6 @@
 # Desktop Client
 
-电脑端正式可执行客户端是中文原生 Windows Forms 程序，不需要浏览器，也不依赖 Python/Tkinter。界面使用左侧设置栏、顶部会话栏、圆角消息气泡和中文状态文案。源码在：
+电脑端正式可执行客户端是原生 Windows Forms 程序，不需要浏览器，也不依赖 Python/Tkinter。界面使用左侧设置栏、顶部会话栏、圆角消息气泡，并支持中文 / 日本語 / English 三种界面语言。源码在：
 
 ```text
 clients/desktop/winforms/AiProject1Client.cs
@@ -35,6 +35,16 @@ Self-signed HTTPS
 ```
 
 电脑端只保存连接配置，不保存模型权重、记忆或知识库。核心数据仍在主设备 Hub 上。
+
+## 语言设置
+
+左侧设置栏提供 `界面语言 / 表示言語 / Interface language` 选项：
+
+- 中文
+- 日本語
+- English
+
+切换后会自动保存，并刷新主要界面文案。
 
 ## 联网搜索设置
 

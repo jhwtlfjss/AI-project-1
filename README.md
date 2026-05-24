@@ -29,7 +29,7 @@ AI Project 1 是一个面向个人陪伴场景的从零训练 AI 工程。它的
 | Google / Baidu / 自定义搜索页 | 已实现，桌面客户端可选 |
 | 虚拟女友人格配置 | 已实现 |
 | 真实对话转训练样本的成长循环 | 已实现 |
-| Windows 桌面客户端 | 已实现，中文原生 WinForms 聊天界面，不依赖 Tkinter |
+| Windows 桌面客户端 | 已实现，原生 WinForms 聊天界面，支持中文 / 日本語 / English，不依赖 Tkinter |
 | Windows exe 打包脚本 | 已实现，生成原生 `.exe` |
 | Windows 安装包脚本 | 已提供，需要本机安装 Inno Setup |
 | Android 原生客户端源码 | 已实现，需要 Android Studio 构建 APK |
@@ -191,7 +191,7 @@ powershell -ExecutionPolicy Bypass -File clients\desktop\build_exe.ps1
 dist\AI Project 1.exe
 ```
 
-这个 exe 是原生 Windows Forms 客户端，不需要 Python 或 Tkinter。
+这个 exe 是原生 Windows Forms 客户端，不需要 Python 或 Tkinter。左侧设置栏可以切换中文 / 日本語 / English 三种界面语言。
 
 安装包脚本也已提供：
 
