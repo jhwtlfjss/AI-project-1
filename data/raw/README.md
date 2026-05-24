@@ -21,3 +21,11 @@ Supported JSONL:
 {"text":"用户: 记住，我喜欢温柔但不夸张的表达。\n伴侣: 我记住了。以后我会温柔一点，也会把分寸感放在心上。"}
 ```
 
+Web-learning corpus:
+
+```powershell
+python scripts/knowledge_to_training.py --knowledge data/knowledge.jsonl --out data/raw/learned_web_corpus.jsonl
+```
+
+This generated file is ignored by Git because it can contain private interests,
+cached web material, and later training traces from your own machine.

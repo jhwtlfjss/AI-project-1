@@ -682,7 +682,8 @@ namespace AIProject1
 
         private void ShowStatus(Dictionary<string, object> status)
         {
-            statusLabel.Text = T("statusPrefix") + (GetBool(status, "ready", false) ? T("modelReady") : T("modelMissing"))
+            var ready = GetBool(status, "ready", false);
+            statusLabel.Text = T("statusPrefix") + (ready ? T("modelReady") : T("modelMissing"))
                 + " · " + GetString(status, "device", "-");
             hubLabel.Text = T("hubEmpty");
             if (status.ContainsKey("hub") && status["hub"] is Dictionary<string, object>)
@@ -693,7 +694,7 @@ namespace AIProject1
             memoryLabel.Text = String.Format(T("memoryStatus"), GetString(status, "memory_facts", "0"), GetString(status, "memory_turns", "0"));
             knowledgeLabel.Text = String.Format(T("knowledgeStatus"), GetString(status, "knowledge_entries", "0"));
             searchLabel.Text = GetBool(status, "live_web", false) ? T("searchHubOn") : T("searchHubOff");
-            AddMessage(T("systemName"), T("connectedMessage"), false, true);
+            AddMessage(T("systemName"), ready ? T("connectedMessage") : T("connectedWithoutModelMessage"), false, true);
         }
 
         private void AddMessage(string speaker, string text, bool mine, bool system)
@@ -912,12 +913,12 @@ namespace AIProject1
                         {"systemName", "系统"},
                         {"meName", "我"},
                         {"assistantName", "她"},
-                        {"welcome", "连接主设备后就可以开始聊天。"},
+                        {"welcome", "先启动主设备 Hub，再连接这里。没有训练出 ckpt.pt 时可以连接，但模型会显示未加载。"},
                         {"languageChanged", "界面语言已切换。"},
                         {"settingsSaved", "状态：设置已保存"},
                         {"connecting", "状态：正在连接..."},
                         {"connectionFailed", "状态：连接失败"},
-                        {"connectionFailedPrefix", "连接失败："},
+                        {"connectionFailedPrefix", "连接失败：请先在主设备运行 scripts\\start_hub.ps1。详细原因："},
                         {"thinkingButton", "思考中"},
                         {"thinking", "状态：思考中..."},
                         {"connected", "状态：已连接"},
@@ -932,7 +933,8 @@ namespace AIProject1
                         {"knowledgeStatus", "知识库：{0} 条记录"},
                         {"searchHubOn", "搜索：主设备已开启"},
                         {"searchHubOff", "搜索：主设备未开启"},
-                        {"connectedMessage", "已连接到主设备。"},
+                        {"connectedMessage", "已连接到主设备，模型已就绪。"},
+                        {"connectedWithoutModelMessage", "已连接到主设备，但还没有加载模型。请先训练生成 runs\\tiny-lover\\ckpt.pt，或用 -NoModel 只测试连接。"},
                         {"screenCleared", "屏幕已清空。"}
                     }
                 },
@@ -969,12 +971,12 @@ namespace AIProject1
                         {"systemName", "システム"},
                         {"meName", "私"},
                         {"assistantName", "彼女"},
-                        {"welcome", "主端末に接続すると会話を始められます。"},
+                        {"welcome", "先に主端末 Hub を起動してから接続してください。ckpt.pt がまだ無い場合、接続はできますがモデル未読み込みになります。"},
                         {"languageChanged", "表示言語を切り替えました。"},
                         {"settingsSaved", "状態：設定を保存しました"},
                         {"connecting", "状態：接続中..."},
                         {"connectionFailed", "状態：接続失敗"},
-                        {"connectionFailedPrefix", "接続失敗："},
+                        {"connectionFailedPrefix", "接続失敗：主端末で scripts\\start_hub.ps1 を実行してください。詳細："},
                         {"thinkingButton", "考え中"},
                         {"thinking", "状態：考え中..."},
                         {"connected", "状態：接続済み"},
@@ -989,7 +991,8 @@ namespace AIProject1
                         {"knowledgeStatus", "知識庫：{0} 件"},
                         {"searchHubOn", "検索：主端末で有効"},
                         {"searchHubOff", "検索：主端末で無効"},
-                        {"connectedMessage", "主端末に接続しました。"},
+                        {"connectedMessage", "主端末に接続しました。モデルは準備完了です。"},
+                        {"connectedWithoutModelMessage", "主端末に接続しましたが、モデルはまだ読み込まれていません。先に runs\\tiny-lover\\ckpt.pt を作成するか、-NoModel で接続だけ確認してください。"},
                         {"screenCleared", "画面をクリアしました。"}
                     }
                 },
@@ -1026,12 +1029,12 @@ namespace AIProject1
                         {"systemName", "System"},
                         {"meName", "Me"},
                         {"assistantName", "Her"},
-                        {"welcome", "Connect to the main device to start chatting."},
+                        {"welcome", "Start the main-device Hub first, then connect here. If ckpt.pt has not been trained yet, the app can connect but the model will show as not loaded."},
                         {"languageChanged", "Interface language changed."},
                         {"settingsSaved", "Status: settings saved"},
                         {"connecting", "Status: connecting..."},
                         {"connectionFailed", "Status: connection failed"},
-                        {"connectionFailedPrefix", "Connection failed: "},
+                        {"connectionFailedPrefix", "Connection failed: start scripts\\start_hub.ps1 on the main device first. Details: "},
                         {"thinkingButton", "Thinking"},
                         {"thinking", "Status: thinking..."},
                         {"connected", "Status: connected"},
@@ -1046,7 +1049,8 @@ namespace AIProject1
                         {"knowledgeStatus", "Knowledge: {0} notes"},
                         {"searchHubOn", "Search: enabled on main device"},
                         {"searchHubOff", "Search: disabled on main device"},
-                        {"connectedMessage", "Connected to the main device."},
+                        {"connectedMessage", "Connected to the main device. Model is ready."},
+                        {"connectedWithoutModelMessage", "Connected to the main device, but no model is loaded yet. Train runs\\tiny-lover\\ckpt.pt first, or use -NoModel only to test the connection."},
                         {"screenCleared", "Screen cleared."}
                     }
                 }

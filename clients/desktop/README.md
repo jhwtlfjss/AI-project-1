@@ -36,6 +36,37 @@ Self-signed HTTPS
 
 电脑端只保存连接配置，不保存模型权重、记忆或知识库。核心数据仍在主设备 Hub 上。
 
+## 如果显示未连接
+
+这个 exe 是聊天客户端，不是模型本体。需要先在主设备启动 Hub：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -NoModel
+```
+
+`-NoModel` 只用于测试连接。客户端能连上后，会显示主设备状态，但因为没有加载模型，聊天会提示模型未加载。
+
+真正聊天需要先训练出：
+
+```text
+runs\tiny-lover\ckpt.pt
+```
+
+然后启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -Checkpoint runs\tiny-lover\ckpt.pt
+```
+
+客户端里填写：
+
+```text
+Server: http://主设备IP:8765
+Token: data/server_token.txt 里的内容
+```
+
+如果没有 `ckpt.pt`，说明现在还只有软件框架和客户端，实际语言模型还没有训练出来。
+
 ## 语言设置
 
 左侧设置栏提供 `界面语言 / 表示言語 / Interface language` 选项：

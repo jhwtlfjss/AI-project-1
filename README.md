@@ -92,6 +92,55 @@ python scripts/chat_cli.py --checkpoint runs/tiny-lover/ckpt.pt
 
 如果你还没有 `runs/tiny-lover/ckpt.pt`，说明模型还没训练出来，需要先完成训练步骤。
 
+如果你现在没有自己的训练资料，可以先用可控联网学习生成一批基础资料：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap_from_web.ps1
+```
+
+这个脚本会依次执行：
+
+```text
+联网读取 configs/learning_sources.json
+  -> 保存 data/knowledge.jsonl
+  -> 生成 data/raw/learned_web_corpus.jsonl
+  -> 重新生成 data/train.bin 和 data/val.bin
+```
+
+然后再训练：
+
+```powershell
+python scripts/train.py --config configs/tiny_nvidia.json
+```
+
+如果想让脚本准备数据后立刻开始训练，可以加 `-Train`。如果你的电脑里 `python` 不在 PATH，请把 `-Python` 指向你安装的 `python.exe`。
+
+## 为什么客户端显示未连接或未加载模型
+
+桌面 exe 和 Android APK 都只是客户端，不直接包含模型权重。真正的语言模型在主设备 Hub 里运行。
+
+最少需要两步：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -NoModel
+```
+
+然后打开 `dist\AI Project 1.exe`，连接 `http://主设备IP:8765` 并填入 `data/server_token.txt` 里的 token。这样可以先确认客户端连接正常。
+
+真正能聊天还需要训练出：
+
+```text
+runs\tiny-lover\ckpt.pt
+```
+
+训练完成后用下面的命令启动 Hub：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_hub.ps1 -Checkpoint runs\tiny-lover\ckpt.pt
+```
+
+如果没有这个 checkpoint，客户端可能能连接到 Hub，但会显示“未加载模型”。这不是客户端坏了，而是还没有实际模型权重。
+
 ## NVIDIA 显卡训练
 
 `configs/tiny_nvidia.json` 和 `configs/small_nvidia.json` 都不是 3080 专用配置。任意支持 CUDA 的 NVIDIA 显卡都可以使用。
@@ -240,6 +289,15 @@ Android App -> 主设备 Hub -> 模型 / 记忆 / 知识库 / 实时工具
 ```powershell
 python scripts/autolearn.py --force
 ```
+
+把已经保存的网络知识转成训练资料：
+
+```powershell
+python scripts/knowledge_to_training.py --knowledge data/knowledge.jsonl --out data/raw/learned_web_corpus.jsonl
+python scripts/prepare_data.py --raw-dir data/raw --out-dir data
+```
+
+这一步不会让模型立刻变聪明，它只是把本地知识库沉淀成下次训练可以吃进去的数据。真正改变模型权重仍然需要运行 `scripts/train.py`。
 
 后台运行：
 
