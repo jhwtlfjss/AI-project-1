@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import torch
 
@@ -60,9 +61,9 @@ def generate_reply(
     live_context: str = "",
     realtime_context: str = "",
     persona_text: str = DEFAULT_PERSONA,
-    max_new_tokens: int = 220,
-    temperature: float = 0.85,
-    top_k: int = 80,
+    max_new_tokens: int = 110,
+    temperature: float = 0.55,
+    top_k: int = 32,
 ) -> str:
     crisis = crisis_reply(user_text)
     if crisis:
@@ -90,8 +91,47 @@ def generate_reply(
     )
     text = tokenizer.decode(y[0].tolist())
     reply = text[len(tokenizer.decode(ids)) :]
-    for stop in ["\n我:", "\n用户:", "\nUser:", "\nHuman:", "\n系统:"]:
+    for stop in ["\n我:", "\n用户:", "\nUser:", "\nHuman:", "\n系统:", "\nSystem:"]:
         if stop in reply:
             reply = reply.split(stop, 1)[0]
     reply = reply.replace("<|end|>", "").strip()
-    return reply or "我在这里。你可以再靠近一点，把刚才那句话慢慢说给我听。"
+    reply = trim_reply(reply)
+    if looks_unstable(reply):
+        return fallback_reply(user_text)
+    return reply or fallback_reply(user_text)
+
+
+def trim_reply(text: str, max_chars: int = 180) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= max_chars:
+        return text
+    for mark in ["。", "！", "？", ".", "!", "?"]:
+        cut = text.rfind(mark, 0, max_chars)
+        if cut >= 24:
+            return text[: cut + 1].strip()
+    return text[:max_chars].rstrip() + "..."
+
+
+def looks_unstable(text: str) -> bool:
+    if len(text.strip()) < 2:
+        return True
+    if "�" in text or "\x00" in text:
+        return True
+    if re.search(r"(.)\1{5,}", text):
+        return True
+    if len(re.findall(r"[{}\[\]<>|_^~`]", text)) >= 5:
+        return True
+    chunks = [text[i : i + 3] for i in range(max(0, len(text) - 2))]
+    if chunks:
+        most_common = max(chunks.count(chunk) for chunk in set(chunks))
+        if most_common >= 5:
+            return True
+    return False
+
+
+def fallback_reply(user_text: str) -> str:
+    if any("\u3040" <= ch <= "\u30ff" for ch in user_text):
+        return "ごめん、今の私はまだ少し不安定だから、無理に作って話さないね。そばにいるから、もう少し短く聞かせて。"
+    if all(ord(ch) < 128 for ch in user_text) and any(ch.isalpha() for ch in user_text):
+        return "I am still a very early local model, so I will not pretend I understood perfectly. I am here with you. Say it a little more simply, and I will stay steady."
+    return "我现在还是很早期的本地模型，刚才可能会乱说。先让我稳一点：我在这里，你可以短一点慢慢告诉我。"

@@ -61,9 +61,13 @@ namespace AIProject1
         private FlowLayoutPanel messageList;
         private TextBox inputBox;
         private Button sendButton;
+        private ColumnStyle settingsColumn;
+        private Panel sidebarPanel;
+        private Button hubControlButton;
         private Process localHubProcess;
         private readonly object localHubLock = new object();
         private bool autoConnectStarted;
+        private bool settingsVisible;
 
         public ChatForm()
         {
@@ -106,10 +110,7 @@ namespace AIProject1
         {
             try
             {
-                if (localHubProcess != null && !localHubProcess.HasExited)
-                {
-                    localHubProcess.Kill();
-                }
+                StopLocalHub();
             }
             catch
             {
@@ -155,15 +156,17 @@ namespace AIProject1
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 2;
             root.RowCount = 1;
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
+            settingsColumn = new ColumnStyle(SizeType.Absolute, 0);
+            root.ColumnStyles.Add(settingsColumn);
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
-            var sidebar = new Panel();
-            sidebar.Dock = DockStyle.Fill;
-            sidebar.BackColor = Theme.Sidebar;
-            sidebar.Padding = new Padding(18);
-            root.Controls.Add(sidebar, 0, 0);
+            sidebarPanel = new Panel();
+            sidebarPanel.Dock = DockStyle.Fill;
+            sidebarPanel.BackColor = Theme.Sidebar;
+            sidebarPanel.Padding = new Padding(18);
+            sidebarPanel.Visible = false;
+            root.Controls.Add(sidebarPanel, 0, 0);
 
             var sideFlow = new FlowLayoutPanel();
             sideFlow.Dock = DockStyle.Fill;
@@ -171,7 +174,7 @@ namespace AIProject1
             sideFlow.WrapContents = false;
             sideFlow.AutoScroll = true;
             sideFlow.BackColor = Theme.Sidebar;
-            sidebar.Controls.Add(sideFlow);
+            sidebarPanel.Controls.Add(sideFlow);
 
             sideFlow.Controls.Add(BuildBrand());
 
@@ -197,6 +200,7 @@ namespace AIProject1
                 autoStartHubBox = Check(T("autoStartHub")),
                 selfSignedBox,
                 SidebarButton(T("startLocalHub"), StartLocalHubClicked, false),
+                SidebarButton(T("stopLocalHub"), StopLocalHubClicked, false),
                 SidebarButton(T("connect"), ConnectClicked, true),
                 SidebarButton(T("save"), SaveClicked, false)
             });
@@ -223,6 +227,7 @@ namespace AIProject1
             searchLabel = SideStatus(T("searchEmpty"));
             AddCard(sideFlow, T("sessionTitle"), new Control[]
             {
+                SidebarButton(T("hideSettings"), ToggleSettingsClicked, false),
                 SidebarButton(T("clear"), ClearClicked, false),
                 statusLabel,
                 hubLabel,
@@ -237,7 +242,7 @@ namespace AIProject1
             main.ColumnCount = 1;
             main.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 102));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             main.BackColor = Theme.Main;
             root.Controls.Add(main, 1, 0);
 
@@ -311,12 +316,32 @@ namespace AIProject1
             subtitle.Size = new Size(420, 24);
             header.Controls.Add(subtitle);
 
+            var settings = HeaderButton(T("settingsButton"));
+            settings.Width = 82;
+            settings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            settings.Click += ToggleSettingsClicked;
+            header.Controls.Add(settings);
+
+            hubControlButton = HeaderButton(T("hubStartButton"));
+            hubControlButton.Width = 92;
+            hubControlButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            hubControlButton.Click += HubControlClicked;
+            header.Controls.Add(hubControlButton);
+
             var reconnect = HeaderButton(T("reconnect"));
+            reconnect.Width = 92;
             reconnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            reconnect.Location = new Point(header.Width - 132, 20);
             reconnect.Click += ConnectClicked;
-            header.Resize += delegate { reconnect.Location = new Point(header.Width - 132, 20); };
             header.Controls.Add(reconnect);
+
+            Action layoutButtons = delegate
+            {
+                reconnect.Location = new Point(header.Width - 114, 20);
+                hubControlButton.Location = new Point(header.Width - 214, 20);
+                settings.Location = new Point(header.Width - 304, 20);
+            };
+            header.Resize += delegate { layoutButtons(); };
+            layoutButtons();
 
             var line = new Panel();
             line.BackColor = Theme.Line;
@@ -344,7 +369,7 @@ namespace AIProject1
             var outer = new Panel();
             outer.Dock = DockStyle.Fill;
             outer.BackColor = Theme.Surface;
-            outer.Padding = new Padding(22, 16, 22, 16);
+            outer.Padding = new Padding(18, 10, 18, 12);
 
             var line = new Panel();
             line.BackColor = Theme.Line;
@@ -357,9 +382,9 @@ namespace AIProject1
             table.ColumnCount = 2;
             table.RowCount = 1;
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
             table.BackColor = Theme.Surface;
-            table.Padding = new Padding(0, 8, 0, 0);
+            table.Padding = new Padding(0, 6, 0, 0);
             outer.Controls.Add(table);
 
             inputBox = new TextBox();
@@ -370,24 +395,36 @@ namespace AIProject1
             inputBox.BackColor = Color.FromArgb(243, 246, 250);
             inputBox.ForeColor = Theme.Text;
             inputBox.KeyDown += InputKeyDown;
-            inputBox.Margin = new Padding(12, 10, 12, 8);
+            inputBox.Margin = new Padding(8, 7, 8, 6);
 
             var inputShell = new RoundedPanel();
             inputShell.FillColor = Color.FromArgb(243, 246, 250);
-            inputShell.BorderColor = Color.FromArgb(226, 232, 240);
-            inputShell.Radius = 18;
-            inputShell.Padding = new Padding(12, 10, 12, 10);
+            inputShell.BorderColor = Color.FromArgb(232, 236, 242);
+            inputShell.Radius = 12;
+            inputShell.Padding = new Padding(8, 7, 8, 7);
             inputShell.Dock = DockStyle.Fill;
             inputShell.Controls.Add(inputBox);
             table.Controls.Add(inputShell, 0, 0);
 
             sendButton = HeaderButton(T("send"));
-            sendButton.Dock = DockStyle.Fill;
+            sendButton.Width = 58;
+            sendButton.Height = 40;
             sendButton.BackColor = Theme.Accent;
             sendButton.ForeColor = Color.White;
             sendButton.Font = Theme.UiFontBold;
             sendButton.Click += SendClicked;
-            table.Controls.Add(sendButton, 1, 0);
+            var sendPanel = new Panel();
+            sendPanel.Dock = DockStyle.Fill;
+            sendPanel.BackColor = Theme.Surface;
+            sendPanel.Controls.Add(sendButton);
+            sendPanel.Resize += delegate
+            {
+                sendButton.Location = new Point(
+                    Math.Max(0, (sendPanel.Width - sendButton.Width) / 2),
+                    Math.Max(0, (sendPanel.Height - sendButton.Height) / 2)
+                );
+            };
+            table.Controls.Add(sendPanel, 1, 0);
             return outer;
         }
 
@@ -468,7 +505,8 @@ namespace AIProject1
 
         private Button SidebarButton(string text, EventHandler handler, bool accent)
         {
-            var button = new Button();
+            var button = new RoundedButton();
+            button.Radius = 10;
             button.Text = text;
             button.Width = 248;
             button.Height = 36;
@@ -485,7 +523,8 @@ namespace AIProject1
 
         private Button HeaderButton(string text)
         {
-            var button = new Button();
+            var button = new RoundedButton();
+            button.Radius = 10;
             button.Text = text;
             button.Width = 110;
             button.Height = 36;
@@ -572,6 +611,36 @@ namespace AIProject1
             statusLabel.Text = T("settingsSaved");
         }
 
+        private void ToggleSettingsClicked(object sender, EventArgs e)
+        {
+            SetSettingsVisible(!settingsVisible);
+        }
+
+        private void SetSettingsVisible(bool visible)
+        {
+            settingsVisible = visible;
+            if (settingsColumn != null)
+            {
+                settingsColumn.Width = visible ? 330 : 0;
+            }
+            if (sidebarPanel != null)
+            {
+                sidebarPanel.Visible = visible;
+            }
+        }
+
+        private void HubControlClicked(object sender, EventArgs e)
+        {
+            if (IsLocalHubRunning())
+            {
+                StopLocalHubClicked(sender, e);
+            }
+            else
+            {
+                StartLocalHubClicked(sender, e);
+            }
+        }
+
         private void StartLocalHubClicked(object sender, EventArgs e)
         {
             SaveSettings();
@@ -584,7 +653,33 @@ namespace AIProject1
                     BeginInvoke(new Action(delegate
                     {
                         statusLabel.Text = T("localHubStarted");
+                        UpdateHubButtonText();
                         AddMessage(T("systemName"), T("localHubStartedMessage"), false, true);
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        statusLabel.Text = T("localHubFailed");
+                        AddMessage(T("systemName"), T("localHubFailedPrefix") + ex.Message, false, true);
+                    }));
+                }
+            });
+        }
+
+        private void StopLocalHubClicked(object sender, EventArgs e)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    StopLocalHub();
+                    BeginInvoke(new Action(delegate
+                    {
+                        statusLabel.Text = T("localHubStopped");
+                        UpdateHubButtonText();
+                        AddMessage(T("systemName"), T("localHubStoppedMessage"), false, true);
                     }));
                 }
                 catch (Exception ex)
@@ -612,7 +707,11 @@ namespace AIProject1
                         StartLocalHub();
                     }
                     var status = RequestStatusWithRetry(shouldStartLocalHub ? 24 : 1);
-                    BeginInvoke(new Action(delegate { ShowStatus(status); }));
+                    BeginInvoke(new Action(delegate
+                    {
+                        ShowStatus(status);
+                        UpdateHubButtonText();
+                    }));
                 }
                 catch (Exception ex)
                 {
@@ -808,6 +907,34 @@ namespace AIProject1
                 }
 
                 LoadLocalTokenIfAvailable(root, false);
+            }
+        }
+
+        private void StopLocalHub()
+        {
+            lock (localHubLock)
+            {
+                if (localHubProcess == null || localHubProcess.HasExited)
+                {
+                    localHubProcess = null;
+                    return;
+                }
+                localHubProcess.Kill();
+                localHubProcess.WaitForExit(2500);
+                localHubProcess = null;
+            }
+        }
+
+        private bool IsLocalHubRunning()
+        {
+            return localHubProcess != null && !localHubProcess.HasExited;
+        }
+
+        private void UpdateHubButtonText()
+        {
+            if (hubControlButton != null)
+            {
+                hubControlButton.Text = IsLocalHubRunning() ? T("hubStopButton") : T("hubStartButton");
             }
         }
 
@@ -1111,8 +1238,13 @@ namespace AIProject1
                         {"selfSigned", "信任自签 HTTPS"},
                         {"autoStartHub", "打开软件时自动启动本机 Hub"},
                         {"startLocalHub", "启动本机 Hub"},
+                        {"stopLocalHub", "停止本机 Hub"},
                         {"connect", "连接主设备"},
                         {"save", "保存设置"},
+                        {"settingsButton", "设置"},
+                        {"hideSettings", "隐藏设置"},
+                        {"hubStartButton", "Hub开"},
+                        {"hubStopButton", "Hub关"},
                         {"searchTitle", "联网搜索"},
                         {"liveSearch", "允许联网搜索"},
                         {"autoLookup", "按触发词自动搜索"},
@@ -1140,7 +1272,9 @@ namespace AIProject1
                         {"startingLocalHub", "状态：正在启动本机 Hub..."},
                         {"localHubStarted", "状态：本机 Hub 已启动"},
                         {"localHubFailed", "状态：本机 Hub 启动失败"},
+                        {"localHubStopped", "状态：本机 Hub 已停止"},
                         {"localHubStartedMessage", "本机 Hub 已在后台启动，我会连接到 127.0.0.1。"},
+                        {"localHubStoppedMessage", "本机 Hub 已停止。需要聊天时可以再启动。"},
                         {"localHubFailedPrefix", "本机 Hub 启动失败："},
                         {"localHubFilesMissing", "找不到 Hub 脚本。请确认安装包包含 scripts 和 companion_ai 目录。"},
                         {"localHubProcessMissing", "Hub 进程没有启动成功。"},
@@ -1178,8 +1312,13 @@ namespace AIProject1
                         {"selfSigned", "自己署名 HTTPS を信頼"},
                         {"autoStartHub", "起動時にローカル Hub を自動起動"},
                         {"startLocalHub", "ローカル Hub を起動"},
+                        {"stopLocalHub", "ローカル Hub を停止"},
                         {"connect", "主端末に接続"},
                         {"save", "設定を保存"},
+                        {"settingsButton", "設定"},
+                        {"hideSettings", "設定を隠す"},
+                        {"hubStartButton", "Hub起動"},
+                        {"hubStopButton", "Hub停止"},
                         {"searchTitle", "Web 検索"},
                         {"liveSearch", "Web 検索を許可"},
                         {"autoLookup", "トリガーで自動検索"},
@@ -1207,7 +1346,9 @@ namespace AIProject1
                         {"startingLocalHub", "状態：ローカル Hub 起動中..."},
                         {"localHubStarted", "状態：ローカル Hub 起動済み"},
                         {"localHubFailed", "状態：ローカル Hub 起動失敗"},
+                        {"localHubStopped", "状態：ローカル Hub 停止済み"},
                         {"localHubStartedMessage", "ローカル Hub をバックグラウンドで起動しました。127.0.0.1 に接続します。"},
+                        {"localHubStoppedMessage", "ローカル Hub を停止しました。必要な時にまた起動できます。"},
                         {"localHubFailedPrefix", "ローカル Hub 起動失敗："},
                         {"localHubFilesMissing", "Hub スクリプトが見つかりません。インストールに scripts と companion_ai が含まれているか確認してください。"},
                         {"localHubProcessMissing", "Hub プロセスを起動できませんでした。"},
@@ -1245,8 +1386,13 @@ namespace AIProject1
                         {"selfSigned", "Trust self-signed HTTPS"},
                         {"autoStartHub", "Auto-start local Hub when app opens"},
                         {"startLocalHub", "Start local Hub"},
+                        {"stopLocalHub", "Stop local Hub"},
                         {"connect", "Connect to main device"},
                         {"save", "Save settings"},
+                        {"settingsButton", "Settings"},
+                        {"hideSettings", "Hide settings"},
+                        {"hubStartButton", "Hub on"},
+                        {"hubStopButton", "Hub off"},
                         {"searchTitle", "Web Search"},
                         {"liveSearch", "Allow web search"},
                         {"autoLookup", "Auto lookup triggers"},
@@ -1274,7 +1420,9 @@ namespace AIProject1
                         {"startingLocalHub", "Status: starting local Hub..."},
                         {"localHubStarted", "Status: local Hub started"},
                         {"localHubFailed", "Status: local Hub failed"},
+                        {"localHubStopped", "Status: local Hub stopped"},
                         {"localHubStartedMessage", "The local Hub has started in the background. I will connect to 127.0.0.1."},
+                        {"localHubStoppedMessage", "The local Hub has stopped. Start it again when you want to chat."},
                         {"localHubFailedPrefix", "Local Hub failed: "},
                         {"localHubFilesMissing", "Hub scripts were not found. Make sure the install includes scripts and companion_ai."},
                         {"localHubProcessMissing", "The Hub process did not start."},
@@ -1398,6 +1546,39 @@ namespace AIProject1
                 e.Graphics.DrawPath(pen, path);
             }
             base.OnPaint(e);
+        }
+    }
+
+    internal sealed class RoundedButton : Button
+    {
+        public int Radius { get; set; }
+
+        public RoundedButton()
+        {
+            Radius = 10;
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            Color fill = Enabled ? BackColor : Color.FromArgb(156, 163, 175);
+            using (GraphicsPath path = RoundedPanel.RoundedRect(rect, Radius))
+            using (SolidBrush brush = new SolidBrush(fill))
+            {
+                e.Graphics.FillPath(brush, path);
+            }
+            TextRenderer.DrawText(
+                e.Graphics,
+                Text,
+                Font,
+                ClientRectangle,
+                ForeColor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis
+            );
         }
     }
 
