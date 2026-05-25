@@ -60,12 +60,16 @@ namespace AIProject1
         private Label searchLabel;
         private FlowLayoutPanel messageList;
         private TextBox inputBox;
-        private Button sendButton;
+        private RoundedButton sendButton;
+        private Button imageButton;
+        private Label attachmentLabel;
         private ColumnStyle settingsColumn;
         private Panel sidebarPanel;
         private Button hubControlButton;
         private Process localHubProcess;
         private readonly object localHubLock = new object();
+        private readonly ToolTip toolTip = new ToolTip();
+        private string pendingImagePath;
         private bool autoConnectStarted;
         private bool settingsVisible;
 
@@ -242,7 +246,7 @@ namespace AIProject1
             main.ColumnCount = 1;
             main.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 126));
             main.BackColor = Theme.Main;
             root.Controls.Add(main, 1, 0);
 
@@ -317,9 +321,11 @@ namespace AIProject1
             header.Controls.Add(subtitle);
 
             var settings = HeaderButton(T("settingsButton"));
-            settings.Width = 82;
+            settings.Width = 42;
+            settings.Font = new Font("Segoe UI Symbol", 13F, FontStyle.Regular);
             settings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             settings.Click += ToggleSettingsClicked;
+            toolTip.SetToolTip(settings, T("settingsTooltip"));
             header.Controls.Add(settings);
 
             hubControlButton = HeaderButton(T("hubStartButton"));
@@ -336,9 +342,12 @@ namespace AIProject1
 
             Action layoutButtons = delegate
             {
-                reconnect.Location = new Point(header.Width - 114, 20);
-                hubControlButton.Location = new Point(header.Width - 214, 20);
-                settings.Location = new Point(header.Width - 304, 20);
+                int x = header.Width - 22 - reconnect.Width;
+                reconnect.Location = new Point(x, 20);
+                x -= hubControlButton.Width + 8;
+                hubControlButton.Location = new Point(x, 20);
+                x -= settings.Width + 8;
+                settings.Location = new Point(x, 20);
             };
             header.Resize += delegate { layoutButtons(); };
             layoutButtons();
@@ -368,64 +377,96 @@ namespace AIProject1
         {
             var outer = new Panel();
             outer.Dock = DockStyle.Fill;
-            outer.BackColor = Theme.Surface;
-            outer.Padding = new Padding(18, 10, 18, 12);
+            outer.BackColor = Theme.Main;
+            outer.Padding = new Padding(18, 12, 18, 14);
 
-            var line = new Panel();
-            line.BackColor = Theme.Line;
-            line.Dock = DockStyle.Top;
-            line.Height = 1;
-            outer.Controls.Add(line);
-
-            var table = new TableLayoutPanel();
-            table.Dock = DockStyle.Fill;
-            table.ColumnCount = 2;
-            table.RowCount = 1;
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
-            table.BackColor = Theme.Surface;
-            table.Padding = new Padding(0, 6, 0, 0);
-            outer.Controls.Add(table);
+            var inputShell = new RoundedPanel();
+            inputShell.FillColor = Color.FromArgb(31, 32, 36);
+            inputShell.BorderColor = Color.FromArgb(66, 68, 76);
+            inputShell.Radius = 10;
+            inputShell.Dock = DockStyle.Fill;
+            inputShell.Padding = new Padding(0);
+            outer.Controls.Add(inputShell);
 
             inputBox = new TextBox();
             inputBox.Multiline = true;
             inputBox.BorderStyle = BorderStyle.None;
-            inputBox.Dock = DockStyle.Fill;
-            inputBox.Font = new Font("Microsoft YaHei UI", 11F);
-            inputBox.BackColor = Color.FromArgb(243, 246, 250);
-            inputBox.ForeColor = Theme.Text;
+            inputBox.Font = new Font("Microsoft YaHei UI", 10.5F);
+            inputBox.BackColor = inputShell.FillColor;
+            inputBox.ForeColor = Color.FromArgb(238, 240, 245);
+            inputBox.ScrollBars = ScrollBars.Vertical;
             inputBox.KeyDown += InputKeyDown;
-            inputBox.Margin = new Padding(8, 7, 8, 6);
-
-            var inputShell = new RoundedPanel();
-            inputShell.FillColor = Color.FromArgb(243, 246, 250);
-            inputShell.BorderColor = Color.FromArgb(232, 236, 242);
-            inputShell.Radius = 12;
-            inputShell.Padding = new Padding(8, 7, 8, 7);
-            inputShell.Dock = DockStyle.Fill;
             inputShell.Controls.Add(inputBox);
-            table.Controls.Add(inputShell, 0, 0);
 
-            sendButton = HeaderButton(T("send"));
-            sendButton.Width = 58;
-            sendButton.Height = 40;
-            sendButton.BackColor = Theme.Accent;
-            sendButton.ForeColor = Color.White;
+            imageButton = ComposerIconButton("图", SelectImageClicked);
+            toolTip.SetToolTip(imageButton, T("imageTooltip"));
+            inputShell.Controls.Add(imageButton);
+
+            attachmentLabel = new Label();
+            attachmentLabel.BackColor = inputShell.FillColor;
+            attachmentLabel.ForeColor = Color.FromArgb(168, 171, 180);
+            attachmentLabel.Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Regular);
+            attachmentLabel.TextAlign = ContentAlignment.MiddleLeft;
+            inputShell.Controls.Add(attachmentLabel);
+
+            sendButton = new RoundedButton();
+            sendButton.Radius = 8;
+            sendButton.Width = 62;
+            sendButton.Height = 30;
+            sendButton.Text = T("send");
+            sendButton.BackColor = Color.FromArgb(52, 54, 60);
+            sendButton.ForeColor = Color.FromArgb(196, 199, 207);
             sendButton.Font = Theme.UiFontBold;
+            sendButton.Cursor = Cursors.Hand;
             sendButton.Click += SendClicked;
-            var sendPanel = new Panel();
-            sendPanel.Dock = DockStyle.Fill;
-            sendPanel.BackColor = Theme.Surface;
-            sendPanel.Controls.Add(sendButton);
-            sendPanel.Resize += delegate
-            {
-                sendButton.Location = new Point(
-                    Math.Max(0, (sendPanel.Width - sendButton.Width) / 2),
-                    Math.Max(0, (sendPanel.Height - sendButton.Height) / 2)
-                );
-            };
-            table.Controls.Add(sendPanel, 1, 0);
+            inputShell.Controls.Add(sendButton);
+
+            inputShell.Resize += delegate { LayoutComposer(inputShell); };
+            LayoutComposer(inputShell);
             return outer;
+        }
+
+        private Button ComposerIconButton(string text, EventHandler handler)
+        {
+            var button = new RoundedButton();
+            button.Radius = 8;
+            button.Text = text;
+            button.Width = 30;
+            button.Height = 28;
+            button.BackColor = Color.FromArgb(42, 44, 50);
+            button.ForeColor = Color.FromArgb(212, 215, 224);
+            button.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.Click += handler;
+            return button;
+        }
+
+        private void LayoutComposer(Control shell)
+        {
+            if (inputBox == null || imageButton == null || sendButton == null || attachmentLabel == null)
+            {
+                return;
+            }
+
+            int pad = 14;
+            int toolbarTop = Math.Max(54, shell.Height - 42);
+            inputBox.Location = new Point(pad, 12);
+            inputBox.Size = new Size(
+                Math.Max(120, shell.Width - pad * 2),
+                Math.Max(34, toolbarTop - 18)
+            );
+
+            int buttonY = Math.Max(12, shell.Height - 38);
+            imageButton.Location = new Point(pad, buttonY);
+            sendButton.Location = new Point(
+                Math.Max(pad, shell.Width - sendButton.Width - 12),
+                Math.Max(12, shell.Height - sendButton.Height - 10)
+            );
+
+            int labelLeft = imageButton.Right + 8;
+            int labelRight = sendButton.Left - 10;
+            attachmentLabel.Location = new Point(labelLeft, buttonY + 3);
+            attachmentLabel.Size = new Size(Math.Max(0, labelRight - labelLeft), 22);
         }
 
         private void AddCard(FlowLayoutPanel parent, string title, Control[] controls)
@@ -747,6 +788,35 @@ namespace AIProject1
             SendMessage();
         }
 
+        private void SelectImageClicked(object sender, EventArgs e)
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Title = T("imageDialogTitle");
+                dialog.Filter = T("imageDialogFilter");
+                dialog.Multiselect = false;
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    pendingImagePath = dialog.FileName;
+                    UpdateAttachmentLabel();
+                }
+            }
+        }
+
+        private void UpdateAttachmentLabel()
+        {
+            if (attachmentLabel == null)
+            {
+                return;
+            }
+            if (String.IsNullOrEmpty(pendingImagePath))
+            {
+                attachmentLabel.Text = "";
+                return;
+            }
+            attachmentLabel.Text = Path.GetFileName(pendingImagePath);
+        }
+
         private void InputKeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter && !e.Shift)
@@ -759,13 +829,31 @@ namespace AIProject1
         private void SendMessage()
         {
             string message = inputBox.Text.Trim();
-            if (message.Length == 0)
+            string imagePath = pendingImagePath;
+            if (message.Length == 0 && String.IsNullOrEmpty(imagePath))
             {
                 return;
             }
             SaveSettings();
             inputBox.Clear();
-            AddMessage(T("meName"), message, true, false);
+            pendingImagePath = "";
+            UpdateAttachmentLabel();
+
+            string displayMessage = message;
+            if (!String.IsNullOrEmpty(imagePath))
+            {
+                string fileName = Path.GetFileName(imagePath);
+                displayMessage = message.Length == 0
+                    ? String.Format(T("imageMessage"), fileName)
+                    : String.Format(T("imageMessageWithText"), fileName, message);
+            }
+            AddMessage(T("meName"), displayMessage, true, false);
+            if (message.Length == 0)
+            {
+                AddMessage(T("systemName"), T("imageOnlyNotSupported"), false, true);
+                return;
+            }
+
             sendButton.Enabled = false;
             sendButton.Text = T("thinkingButton");
             statusLabel.Text = T("thinking");
@@ -1241,7 +1329,8 @@ namespace AIProject1
                         {"stopLocalHub", "停止本机 Hub"},
                         {"connect", "连接主设备"},
                         {"save", "保存设置"},
-                        {"settingsButton", "设置"},
+                        {"settingsButton", "⚙"},
+                        {"settingsTooltip", "设置"},
                         {"hideSettings", "隐藏设置"},
                         {"hubStartButton", "Hub开"},
                         {"hubStopButton", "Hub关"},
@@ -1260,6 +1349,12 @@ namespace AIProject1
                         {"searchEmpty", "搜索：-"},
                         {"reconnect", "重新连接"},
                         {"send", "发送"},
+                        {"imageTooltip", "发送图片"},
+                        {"imageDialogTitle", "选择图片"},
+                        {"imageDialogFilter", "图片文件|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif|所有文件|*.*"},
+                        {"imageMessage", "[图片] {0}"},
+                        {"imageMessageWithText", "[图片] {0}\r\n{1}"},
+                        {"imageOnlyNotSupported", "图片入口已经放好了，但这个本地模型暂时还不能识别图片内容。可以先配文字发给她。"},
                         {"systemName", "系统"},
                         {"meName", "我"},
                         {"assistantName", "她"},
@@ -1315,7 +1410,8 @@ namespace AIProject1
                         {"stopLocalHub", "ローカル Hub を停止"},
                         {"connect", "主端末に接続"},
                         {"save", "設定を保存"},
-                        {"settingsButton", "設定"},
+                        {"settingsButton", "⚙"},
+                        {"settingsTooltip", "設定"},
                         {"hideSettings", "設定を隠す"},
                         {"hubStartButton", "Hub起動"},
                         {"hubStopButton", "Hub停止"},
@@ -1334,6 +1430,12 @@ namespace AIProject1
                         {"searchEmpty", "検索：-"},
                         {"reconnect", "再接続"},
                         {"send", "送信"},
+                        {"imageTooltip", "画像を送る"},
+                        {"imageDialogTitle", "画像を選択"},
+                        {"imageDialogFilter", "画像ファイル|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif|すべてのファイル|*.*"},
+                        {"imageMessage", "[画像] {0}"},
+                        {"imageMessageWithText", "[画像] {0}\r\n{1}"},
+                        {"imageOnlyNotSupported", "画像の入口は用意しましたが、このローカルモデルはまだ画像内容を理解できません。先に文章を添えて送ってください。"},
                         {"systemName", "システム"},
                         {"meName", "私"},
                         {"assistantName", "彼女"},
@@ -1389,7 +1491,8 @@ namespace AIProject1
                         {"stopLocalHub", "Stop local Hub"},
                         {"connect", "Connect to main device"},
                         {"save", "Save settings"},
-                        {"settingsButton", "Settings"},
+                        {"settingsButton", "⚙"},
+                        {"settingsTooltip", "Settings"},
                         {"hideSettings", "Hide settings"},
                         {"hubStartButton", "Hub on"},
                         {"hubStopButton", "Hub off"},
@@ -1408,6 +1511,12 @@ namespace AIProject1
                         {"searchEmpty", "Search: -"},
                         {"reconnect", "Reconnect"},
                         {"send", "Send"},
+                        {"imageTooltip", "Send image"},
+                        {"imageDialogTitle", "Choose image"},
+                        {"imageDialogFilter", "Image files|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif|All files|*.*"},
+                        {"imageMessage", "[Image] {0}"},
+                        {"imageMessageWithText", "[Image] {0}\r\n{1}"},
+                        {"imageOnlyNotSupported", "The image entry is in place, but this local model cannot understand image content yet. Add text with the image for now."},
                         {"systemName", "System"},
                         {"meName", "Me"},
                         {"assistantName", "Her"},
