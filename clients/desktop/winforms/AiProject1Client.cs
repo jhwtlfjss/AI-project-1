@@ -37,6 +37,14 @@ namespace AIProject1
 
     public sealed class ChatForm : Form
     {
+        private const string IconSettings = "\uE713";
+        private const string IconCamera = "\uE722";
+        private const string IconSend = "\uE724";
+        private const string IconRefresh = "\uE72C";
+        private const string IconPlay = "\uE768";
+        private const string IconStop = "\uE71A";
+        private const string IconMore = "\uE712";
+
         private readonly string configDir;
         private readonly string configPath;
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
@@ -320,22 +328,20 @@ namespace AIProject1
             subtitle.Size = new Size(420, 24);
             header.Controls.Add(subtitle);
 
-            var settings = HeaderButton(T("settingsButton"));
+            var settings = HeaderIconButton(IconSettings, T("settingsTooltip"));
             settings.Width = 42;
-            settings.Font = new Font("Segoe UI Symbol", 13F, FontStyle.Regular);
             settings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             settings.Click += ToggleSettingsClicked;
-            toolTip.SetToolTip(settings, T("settingsTooltip"));
             header.Controls.Add(settings);
 
-            hubControlButton = HeaderButton(T("hubStartButton"));
-            hubControlButton.Width = 92;
+            hubControlButton = HeaderIconButton(IconPlay, T("hubStartTooltip"));
+            hubControlButton.Width = 42;
             hubControlButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             hubControlButton.Click += HubControlClicked;
             header.Controls.Add(hubControlButton);
 
-            var reconnect = HeaderButton(T("reconnect"));
-            reconnect.Width = 92;
+            var reconnect = HeaderIconButton(IconRefresh, T("reconnect"));
+            reconnect.Width = 42;
             reconnect.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             reconnect.Click += ConnectClicked;
             header.Controls.Add(reconnect);
@@ -398,7 +404,7 @@ namespace AIProject1
             inputBox.KeyDown += InputKeyDown;
             inputShell.Controls.Add(inputBox);
 
-            imageButton = ComposerIconButton("图", SelectImageClicked);
+            imageButton = ComposerIconButton(IconCamera, SelectImageClicked);
             toolTip.SetToolTip(imageButton, T("imageTooltip"));
             inputShell.Controls.Add(imageButton);
 
@@ -413,12 +419,13 @@ namespace AIProject1
             sendButton.Radius = 8;
             sendButton.Width = 62;
             sendButton.Height = 30;
-            sendButton.Text = T("send");
+            sendButton.Text = IconSend;
             sendButton.BackColor = Color.FromArgb(52, 54, 60);
             sendButton.ForeColor = Color.FromArgb(196, 199, 207);
-            sendButton.Font = Theme.UiFontBold;
+            sendButton.Font = IconFont(12F);
             sendButton.Cursor = Cursors.Hand;
             sendButton.Click += SendClicked;
+            toolTip.SetToolTip(sendButton, T("send"));
             inputShell.Controls.Add(sendButton);
 
             inputShell.Resize += delegate { LayoutComposer(inputShell); };
@@ -435,7 +442,7 @@ namespace AIProject1
             button.Height = 28;
             button.BackColor = Color.FromArgb(42, 44, 50);
             button.ForeColor = Color.FromArgb(212, 215, 224);
-            button.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+            button.Font = IconFont(11F);
             button.Cursor = Cursors.Hand;
             button.Click += handler;
             return button;
@@ -560,6 +567,28 @@ namespace AIProject1
             button.Cursor = Cursors.Hand;
             button.Click += handler;
             return button;
+        }
+
+        private Button HeaderIconButton(string icon, string tooltip)
+        {
+            var button = new RoundedButton();
+            button.Radius = 10;
+            button.Text = icon;
+            button.Width = 42;
+            button.Height = 36;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = Theme.Accent;
+            button.ForeColor = Color.White;
+            button.Font = IconFont(12F);
+            button.Cursor = Cursors.Hand;
+            toolTip.SetToolTip(button, tooltip);
+            return button;
+        }
+
+        private static Font IconFont(float size)
+        {
+            return new Font("Segoe MDL2 Assets", size, FontStyle.Regular);
         }
 
         private Button HeaderButton(string text)
@@ -855,7 +884,8 @@ namespace AIProject1
             }
 
             sendButton.Enabled = false;
-            sendButton.Text = T("thinkingButton");
+            sendButton.Text = IconMore;
+            toolTip.SetToolTip(sendButton, T("thinkingButton"));
             statusLabel.Text = T("thinking");
 
             ThreadPool.QueueUserWorkItem(delegate
@@ -871,7 +901,8 @@ namespace AIProject1
                     {
                         AddMessage(T("assistantName"), reply, false, false);
                         statusLabel.Text = T("connected");
-                        sendButton.Text = T("send");
+                        sendButton.Text = IconSend;
+                        toolTip.SetToolTip(sendButton, T("send"));
                         sendButton.Enabled = true;
                     }));
                 }
@@ -881,7 +912,8 @@ namespace AIProject1
                     {
                         AddMessage(T("systemName"), T("sendFailedPrefix") + ex.Message, false, true);
                         statusLabel.Text = T("sendFailed");
-                        sendButton.Text = T("send");
+                        sendButton.Text = IconSend;
+                        toolTip.SetToolTip(sendButton, T("send"));
                         sendButton.Enabled = true;
                     }));
                 }
@@ -1022,7 +1054,9 @@ namespace AIProject1
         {
             if (hubControlButton != null)
             {
-                hubControlButton.Text = IsLocalHubRunning() ? T("hubStopButton") : T("hubStartButton");
+                bool running = IsLocalHubRunning();
+                hubControlButton.Text = running ? IconStop : IconPlay;
+                toolTip.SetToolTip(hubControlButton, running ? T("hubStopTooltip") : T("hubStartTooltip"));
             }
         }
 
@@ -1334,6 +1368,8 @@ namespace AIProject1
                         {"hideSettings", "隐藏设置"},
                         {"hubStartButton", "Hub开"},
                         {"hubStopButton", "Hub关"},
+                        {"hubStartTooltip", "启动本机 Hub"},
+                        {"hubStopTooltip", "停止本机 Hub"},
                         {"searchTitle", "联网搜索"},
                         {"liveSearch", "允许联网搜索"},
                         {"autoLookup", "按触发词自动搜索"},
@@ -1415,6 +1451,8 @@ namespace AIProject1
                         {"hideSettings", "設定を隠す"},
                         {"hubStartButton", "Hub起動"},
                         {"hubStopButton", "Hub停止"},
+                        {"hubStartTooltip", "ローカル Hub を起動"},
+                        {"hubStopTooltip", "ローカル Hub を停止"},
                         {"searchTitle", "Web 検索"},
                         {"liveSearch", "Web 検索を許可"},
                         {"autoLookup", "トリガーで自動検索"},
@@ -1496,6 +1534,8 @@ namespace AIProject1
                         {"hideSettings", "Hide settings"},
                         {"hubStartButton", "Hub on"},
                         {"hubStopButton", "Hub off"},
+                        {"hubStartTooltip", "Start local Hub"},
+                        {"hubStopTooltip", "Stop local Hub"},
                         {"searchTitle", "Web Search"},
                         {"liveSearch", "Allow web search"},
                         {"autoLookup", "Auto lookup triggers"},
